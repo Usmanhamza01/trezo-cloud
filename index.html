@@ -886,7 +886,7 @@ R.set=function(){
   <label class="mt adm" style="display:block;margin-top:1rem"><span class="btn btn-o btn-full" style="display:flex">Importer une sauvegarde (migration)</span><input type="file" accept=".json,application/json" style="display:none" onchange="restore(this)"></label>
   <p class="fine mt">La sauvegarde cloud est automatique. L’archive JSON sert de copie personnelle et permet de migrer les données d’une installation Trezo Classique vers le cloud.</p>
   <button class="btn btn-d btn-full mt adm" onclick="resetAll()">Vider les données de l’entreprise</button></div>
- <p class="fine" style="text-align:center;margin:.4rem 0 1.2rem">Trezo Cloud v2.1</p>`;
+ <p class="fine" style="text-align:center;margin:.4rem 0 1.2rem">Trezo Cloud v2.2</p>`;
 };
 function setLogo(inp){const f=inp.files[0];if(!f)return;resizeImg(f,url=>{S.company.logo=url;document.getElementById('s-logo-prev').src=url;save();renderHeader();toast('Logo mis à jour');});}
 async function saveCompany(){
@@ -1098,41 +1098,96 @@ function monthlyReport(){
  if(!window.jspdf){toast('Module PDF non chargé — connectez-vous une fois à Internet');return;}
  try{
   const m=curMonth();
-  const enc=txMonth(m,'in'),dec=txMonth(m,'out');
   const doc=new window.jspdf.jsPDF();
   if(typeof doc.autoTable!=='function'){toast('Module tableaux PDF non chargé — rechargez la page une fois connecté');return;}
+  const enc=txMonth(m,'in'),dec=txMonth(m,'out'),res=enc-dec,sol=solde();
   const mt=new Date().toLocaleDateString('fr-FR',{month:'long',year:'numeric'});
-  if(S.company.logo){try{doc.addImage(S.company.logo,'PNG',14,12,20,20);}catch(e){}}
-  doc.setFont('helvetica','bold');doc.setFontSize(16);doc.setTextColor(14,90,69);
-  doc.text(String(S.company.name).slice(0,60),S.company.logo?38:14,19);
-  doc.setFontSize(11);doc.setTextColor(60);
-  doc.text('Rapport mensuel — '+mt.charAt(0).toUpperCase()+mt.slice(1),S.company.logo?38:14,26);
-  doc.setFont('helvetica','normal');doc.setFontSize(10);doc.setTextColor(20);
-  let y=44;
-  doc.text('Encaissements du mois : '+pdfN(enc)+' '+S.company.symbol,14,y);y+=6;
-  doc.text('Décaissements du mois : '+pdfN(dec)+' '+S.company.symbol,14,y);y+=6;
-  doc.setFont('helvetica','bold');
-  doc.text('Résultat du mois : '+pdfN(enc-dec)+' '+S.company.symbol,14,y);
-  doc.setFont('helvetica','normal');y+=6;
+  const titre=mt.charAt(0).toUpperCase()+mt.slice(1);
+  const L=14,Rt=196;
+  /* Bandeau de marque */
+  doc.setFillColor(14,90,69);doc.rect(0,0,210,34,'F');
+  doc.setFillColor(10,61,47);doc.rect(0,31,210,3,'F');
+  if(S.company.logo){try{doc.setFillColor(255,255,255);doc.roundedRect(L,7,20,20,3,3,'F');doc.addImage(S.company.logo,'PNG',L+1.5,8.5,17,17);}catch(e){}}
+  doc.setTextColor(255,255,255);doc.setFont('helvetica','bold');doc.setFontSize(15);
+  doc.text(String(S.company.name).slice(0,48),S.company.logo?40:L,15);
+  doc.setFontSize(9);doc.setFont('helvetica','normal');doc.setTextColor(224,238,231);
+  doc.text('RAPPORT MENSUEL — '+titre.toUpperCase(),S.company.logo?40:L,22);
+  doc.setFontSize(8);
+  doc.text('Généré le '+new Date().toLocaleDateString('fr-FR'),Rt,22,{align:'right'});
+  /* Cartes KPI */
+  let y=42;
+  const kpi=[['ENCAISSEMENTS',pdfN(enc),[14,90,69]],['DÉCAISSEMENTS',pdfN(dec),[192,73,47]],['RÉSULTAT DU MOIS',(res>=0?'+':'-')+pdfN(Math.abs(res)),res>=0?[14,90,69]:[192,73,47]],['SOLDE GLOBAL',pdfN(sol),[28,36,32]]];
+  const bw=44.5,gap=1.7;
+  kpi.forEach((k,i)=>{
+   const x=L+i*(bw+gap);
+   doc.setFillColor(247,243,236);doc.roundedRect(x,y,bw,21,2.5,2.5,'F');
+   doc.setFontSize(6.6);doc.setTextColor(94,107,100);doc.setFont('helvetica','bold');
+   doc.text(k[0],x+3.5,y+6);
+   doc.setFontSize(11);doc.setTextColor(k[2][0],k[2][1],k[2][2]);
+   doc.text(k[1],x+3.5,y+13.5);
+   doc.setFontSize(6.6);doc.setTextColor(94,107,100);doc.setFont('helvetica','normal');
+   doc.text(S.company.symbol,x+3.5,y+18.3);
+  });
+  y+=27;
+  /* Objectif avec barre de progression */
   const g=S.goals.find(x=>x.month===m);
-  if(g&&g.target>0){doc.text('Objectif : '+pdfN(g.target)+' '+S.company.symbol+' — atteint à '+Math.round(enc/g.target*100)+' %',14,y);y+=6;}
-  doc.text('Solde de trésorerie global : '+pdfN(solde())+' '+S.company.symbol,14,y);
-  function table(opts){
-   if(y>232){doc.addPage();y=18;}
-   doc.autoTable(Object.assign({startY:y+6,styles:{font:'helvetica',fontSize:9},margin:{bottom:18}},opts));
-   y=doc.lastAutoTable?doc.lastAutoTable.finalY:y+30;
+  if(g&&g.target>0){
+   const pc=Math.min(1,enc/g.target);
+   doc.setFontSize(8.5);doc.setTextColor(28,36,32);doc.setFont('helvetica','bold');
+   doc.text('Objectif du mois : '+pdfN(g.target)+' '+S.company.symbol,L,y);
+   doc.setFont('helvetica','normal');doc.setTextColor(94,107,100);
+   doc.text(Math.round(enc/g.target*100)+' % atteint',Rt,y,{align:'right'});
+   doc.setFillColor(231,226,216);doc.roundedRect(L,y+2.5,182,3.4,1.7,1.7,'F');
+   if(pc>0){doc.setFillColor(242,179,61);doc.roundedRect(L,y+2.5,Math.max(4,182*pc),3.4,1.7,1.7,'F');}
+   y+=13;
   }
+  function section(t){
+   if(y>238){doc.addPage();y=22;}
+   doc.setFillColor(242,179,61);doc.rect(L,y-3.2,3.2,3.2,'F');
+   doc.setFont('helvetica','bold');doc.setFontSize(10.5);doc.setTextColor(10,61,47);
+   doc.text(t,L+5.5,y);
+   y+=3;
+  }
+  function table(opts){
+   doc.autoTable(Object.assign({startY:y,margin:{left:L,right:L,bottom:20},styles:{font:'helvetica',fontSize:8.6,cellPadding:2.4,textColor:[28,36,32]},headStyles:{fillColor:[14,90,69],fontSize:8},alternateRowStyles:{fillColor:[250,248,244]}},opts));
+   y=(doc.lastAutoTable?doc.lastAutoTable.finalY:y+20)+10;
+  }
+  const right={halign:'right'};
   const cats={};S.tx.filter(x=>x.type==='out'&&x.date.slice(0,7)===m).forEach(x=>cats[x.cat]=(cats[x.cat]||0)+x.amount);
-  const cbody=Object.keys(cats).sort((a,b)=>cats[b]-cats[a]).map(k=>[k,pdfN(cats[k])]);
-  if(cbody.length)table({head:[['Décaissements par catégorie','Montant ('+S.company.symbol+')']],body:cbody,headStyles:{fillColor:[14,90,69]}});
+  const ck=Object.keys(cats).sort((a,b)=>cats[b]-cats[a]);
+  if(ck.length){
+   section('Décaissements par catégorie');
+   table({head:[['Catégorie',{content:'Montant ('+S.company.symbol+')',styles:right},{content:'Part',styles:right}]],
+    body:ck.map(k=>[k,{content:pdfN(cats[k]),styles:right},{content:(dec>0?Math.round(cats[k]/dec*100):0)+' %',styles:right}])});
+  }
   const prod={};
   S.tx.filter(x=>x.type==='in'&&x.date.slice(0,7)===m&&x.productId).forEach(x=>{const p=S.products.find(q=>q.id===x.productId);if(p){prod[p.name]=prod[p.name]||{q:0,a:0};prod[p.name].q+=x.qty||1;prod[p.name].a+=x.amount;}});
-  const pbody=Object.keys(prod).sort((a,b)=>prod[b].a-prod[a].a).slice(0,8).map(k=>[k,String(prod[k].q),pdfN(prod[k].a)]);
-  if(pbody.length)table({head:[['Produits les plus vendus','Qté','Montant']],body:pbody,headStyles:{fillColor:[242,179,61],textColor:[61,42,0]}});
-  const sbody=S.salPays.filter(p=>p.month===m).map(p=>{const e=S.employees.find(x=>x.id===p.empId);return[e?e.name:'(retiré)',pdfN(p.amount)];});
-  if(sbody.length)table({head:[['Salaires payés ce mois','Montant']],body:sbody,headStyles:{fillColor:[14,90,69]}});
-  doc.setFontSize(8);doc.setTextColor(130);
-  doc.text('Généré avec Trezo — '+new Date().toLocaleDateString('fr-FR'),14,287);
+  const pk=Object.keys(prod).sort((a,b)=>prod[b].a-prod[a].a).slice(0,8);
+  if(pk.length){
+   section('Produits les plus vendus');
+   table({head:[['Produit',{content:'Qté',styles:right},{content:'Montant ('+S.company.symbol+')',styles:right}]],
+    body:pk.map(k=>[k,{content:String(prod[k].q),styles:right},{content:pdfN(prod[k].a),styles:right}]),
+    headStyles:{fillColor:[242,179,61],textColor:[61,42,0],fontSize:8}});
+  }
+  const sp=S.salPays.filter(p=>p.month===m);
+  if(sp.length){
+   section('Salaires payés');
+   table({head:[['Employé',{content:'Payé le',styles:right},{content:'Montant ('+S.company.symbol+')',styles:right}]],
+    body:sp.map(p=>{const e=S.employees.find(x=>x.id===p.empId);return[e?e.name:'(retiré)',{content:dateLabel(p.date),styles:right},{content:pdfN(p.amount),styles:right}];})});
+  }
+  if(!ck.length&&!pk.length&&!sp.length){
+   doc.setFontSize(9);doc.setTextColor(94,107,100);doc.setFont('helvetica','italic');
+   doc.text('Aucune opération détaillée enregistrée ce mois-ci.',L,y+4);
+  }
+  /* Pied de page paginé */
+  const np=doc.internal.getNumberOfPages();
+  for(let i=1;i<=np;i++){
+   doc.setPage(i);
+   doc.setDrawColor(231,226,216);doc.line(L,286,Rt,286);
+   doc.setFont('helvetica','normal');doc.setFontSize(7.5);doc.setTextColor(150,145,135);
+   doc.text(String(S.company.name).slice(0,40)+' — rapport généré avec Trezo',L,291);
+   doc.text('Page '+i+' / '+np,Rt,291,{align:'right'});
+  }
   doc.save('rapport-'+m+'.pdf');
   log('Rapport mensuel généré ('+m+')');save();
  }catch(err){
