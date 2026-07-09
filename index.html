@@ -172,6 +172,8 @@ body.readonly .ro-banner{display:block}
 .inv-tot .ttc{font-weight:800;font-size:1.05rem;margin-top:.25rem;color:var(--vert)}
 .inv-foot{margin-top:1.2rem;font-size:.7rem;color:#999}
 #print-area{display:none}
+.thsort{cursor:pointer;user-select:none;white-space:nowrap}
+.thsort:hover{color:var(--vert)}
 @media print{body>*{display:none !important}#print-area{display:block !important}#print-area .inv-doc{box-shadow:none;border-radius:0;padding:0}}
 @media(prefers-reduced-motion:reduce){*{transition:none !important;animation:none !important}}
 </style>
@@ -186,6 +188,7 @@ body.readonly .ro-banner{display:block}
     <div class="hname" id="h-name">Trezo</div>
     <div class="hsub"><span id="h-lic"></span><span id="h-sync"></span></div>
   </div>
+  <button class="btn-lock" id="btn-refresh" title="Recharger les données depuis le cloud">⟳</button>
   <button class="btn-lock" id="btn-lock" title="Basculer le mode lecture seule">🔒 Verrouiller</button>
 </header>
 
@@ -194,6 +197,7 @@ body.readonly .ro-banner{display:block}
 <main id="main">
   <div class="view" id="v-dash"></div>
   <div class="view" id="v-flux"></div>
+  <div class="view" id="v-cli"></div>
   <div class="view" id="v-sal"></div>
   <div class="view" id="v-obj"></div>
   <div class="view" id="v-stock"></div>
@@ -223,7 +227,7 @@ const CONFIG=window.TREZO_CONFIG||{};
 const CURRENCIES=[["XOF","FCFA","Franc CFA (UEMOA)"],["XAF","FCFA","Franc CFA (CEMAC)"],["MAD","DH","Dirham marocain"],["TND","DT","Dinar tunisien"],["DZD","DA","Dinar algérien"],["EGP","E£","Livre égyptienne"],["NGN","₦","Naira nigérian"],["GHS","GH₵","Cedi ghanéen"],["KES","KSh","Shilling kényan"],["TZS","TSh","Shilling tanzanien"],["UGX","USh","Shilling ougandais"],["RWF","FRw","Franc rwandais"],["GNF","FG","Franc guinéen"],["CDF","FC","Franc congolais"],["MRU","UM","Ouguiya mauritanien"],["ZAR","R","Rand sud-africain"],["ETB","Br","Birr éthiopien"],["USD","$","Dollar US"],["EUR","€","Euro"]];
 const CAT_IN=["Ventes","Prestations de services","Remboursement","Apport","Autre"];
 const CAT_OUT=["Achats fournisseurs","Loyer","Salaires","Transport","Électricité & eau","Internet & téléphone","Impôts & taxes","Entretien","Autre"];
-const DEFAULT={v:2,company:{name:"",currency:"XOF",symbol:"FCFA",logo:null},license:null,products:[],tx:[],employees:[],salPays:[],goals:[],invoices:[],journal:[],settings:{pin:null,readOnly:false,invSeq:0}};
+const DEFAULT={v:2,company:{name:"",currency:"XOF",symbol:"FCFA",logo:null},license:null,products:[],accounts:[],clients:[],tx:[],employees:[],salPays:[],goals:[],invoices:[],journal:[],settings:{pin:null,readOnly:false,invSeq:0}};
 const LOGO='data:image/svg+xml;utf8,'+encodeURIComponent("<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect width='192' height='192' rx='42' fill='#0E5A45'/><rect x='46' y='104' width='22' height='42' rx='6' fill='#F2B33D'/><rect x='78' y='84' width='22' height='62' rx='6' fill='#7FC8A9'/><rect x='110' y='58' width='22' height='88' rx='6' fill='#FFFFFF'/><rect x='38' y='36' width='116' height='16' rx='6' fill='#FFFFFF'/></svg>");
 let S=JSON.parse(JSON.stringify(DEFAULT));
 let SB=null,SESSION=null,COMPANY=null,DOC_VERSION=1,SAVE_T=null,SAVING=false,PENDING=false;
@@ -237,7 +241,7 @@ const fmt2=(n,sym)=>NF.format(Math.round(n||0))+' '+sym;
 const pdfN=n=>NF.format(Math.round(n||0)).replace(/[\u202F\u00A0]/g,' ');
 function monthLabel(m){const p=m.split('-');return new Date(+p[0],+p[1]-1,1).toLocaleDateString('fr-FR',{month:'short',year:'2-digit'});}
 function dateLabel(d){return new Date(d+'T00:00:00').toLocaleDateString('fr-FR',{day:'numeric',month:'short',year:'numeric'});}
-function log(txt){S.journal.unshift({d:new Date().toISOString(),txt});if(S.journal.length>300)S.journal.length=300;}
+function log(txt){S.journal.unshift({d:new Date().toISOString(),txt,by:(SESSION&&SESSION.user)?SESSION.user.email:''});if(S.journal.length>300)S.journal.length=300;}
 function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove('show'),2600);}
 async function sha(s){const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(s));return[...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('').toUpperCase();}
 function setSync(t){const e=document.getElementById('h-sync');if(e)e.textContent=t;}
@@ -259,7 +263,7 @@ async function flushSave(){
  if(SAVING){PENDING=true;return;}
  SAVING=true;PENDING=false;
  try{
-  const payload={products:S.products,tx:S.tx,employees:S.employees,salPays:S.salPays,goals:S.goals,invoices:S.invoices,journal:S.journal,settings:S.settings,logo:S.company.logo};
+  const payload={products:S.products,accounts:S.accounts,clients:S.clients,tx:S.tx,employees:S.employees,salPays:S.salPays,goals:S.goals,invoices:S.invoices,journal:S.journal,settings:S.settings,logo:S.company.logo};
   const r=await SB.rpc('save_data',{p_company:COMPANY.id,p_data:payload,p_version:DOC_VERSION});
   if(r.error)throw r.error;
   DOC_VERSION=r.data;setSync(' · ✓ synchronisé');
@@ -284,6 +288,7 @@ document.querySelectorAll('.sheet-bg').forEach(b=>b.addEventListener('click',e=>
 /* ===== Navigation ===== */
 const IC={dash:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-8 9 8"/><path d="M5 9.5V20h5v-6h4v6h5V9.5"/></svg>',
 flux:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17l-4-4 4-4"/><path d="M3 13h14"/><path d="M17 7l4 4-4 4"/><path d="M21 11H7"/></svg>',
+cli:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2.2"/><path d="M5.5 16c.6-1.6 2-2.5 3.5-2.5s2.9.9 3.5 2.5"/><path d="M15 9h4M15 13h3"/></svg>',
 sal:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6"/><circle cx="17" cy="9" r="2.5"/><path d="M17 14.5c2.8 0 4.5 2 4.5 4.5"/></svg>',
 obj:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.4" fill="currentColor"/></svg>',
 stock:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 7v10l9 4 9-4V7"/><path d="M12 11v10"/></svg>',
@@ -291,13 +296,13 @@ fact:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2
 jour:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 4h13a2 2 0 012 2v14H6a2 2 0 01-2-2V4z"/><path d="M4 4a2 2 0 012-2h11v4"/><path d="M9 9h6"/></svg>',
 set:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 00-.1-1.2l2-1.5-2-3.5-2.3 1a7 7 0 00-2-1.2L14 3h-4l-.5 2.6a7 7 0 00-2 1.2l-2.4-1-2 3.5 2 1.5A7 7 0 005 12c0 .4 0 .8.1 1.2l-2 1.5 2 3.5 2.3-1a7 7 0 002 1.2L10 21h4l.5-2.6a7 7 0 002-1.2l2.4 1 2-3.5-2-1.5c.1-.4.1-.8.1-1.2z"/></svg>',
 plus:'<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>'};
-const VIEWS=[["dash","Tableau"],["flux","Flux"],["sal","Salaires"],["obj","Objectifs"],["stock","Stocks"],["fact","Factures"],["jour","Journal"],["set","Réglages"]];
+const VIEWS=[["dash","Tableau"],["flux","Flux"],["cli","Clients"],["sal","Salaires"],["obj","Objectifs"],["stock","Stocks"],["fact","Factures"],["jour","Journal"],["set","Réglages"]];
 let CUR='dash';
 const R={};
 function renderNav(){
  const bottom=[["dash","Tableau"],["flux","Flux"],["fact","Factures"],["stock","Stocks"]];
  document.getElementById('bnav').innerHTML=bottom.map(function(it){return '<button data-v="'+it[0]+'" onclick="go(\''+it[0]+'\')">'+IC[it[0]]+it[1]+'</button>';}).join('')+'<button onclick="openSheet(\'sheet-plus\')">'+IC.plus+'Plus</button>';
- document.getElementById('plus-items').innerHTML=[["sal","Salaires"],["obj","Objectifs"],["jour","Journal"],["set","Réglages"]].map(function(it){return '<button class="menu-it" onclick="closeSheet(\'sheet-plus\');go(\''+it[0]+'\')">'+IC[it[0]]+it[1]+'</button>';}).join('');
+ document.getElementById('plus-items').innerHTML=[["cli","Clients"],["sal","Salaires"],["obj","Objectifs"],["jour","Journal"],["set","Réglages"]].map(function(it){return '<button class="menu-it" onclick="closeSheet(\'sheet-plus\');go(\''+it[0]+'\')">'+IC[it[0]]+it[1]+'</button>';}).join('');
  document.getElementById('side').innerHTML='<div class="slogo"><img src="'+LOGO+'" alt="" style="width:34px;height:34px;border-radius:9px">Trezo</div>'+VIEWS.map(function(it){return '<button data-v="'+it[0]+'" onclick="go(\''+it[0]+'\')">'+IC[it[0]]+it[1]+'</button>';}).join('');
 }
 function go(v){CUR=v;document.querySelectorAll('.view').forEach(x=>x.classList.remove('on'));document.getElementById('v-'+v).classList.add('on');document.querySelectorAll('[data-v]').forEach(x=>x.classList.toggle('on',x.dataset.v===v));if(R[v])R[v]();window.scrollTo(0,0);}
@@ -321,6 +326,21 @@ document.getElementById('btn-lock').onclick=async function(){
   if(await sha('PIN|'+p)===S.settings.pin){S.settings.readOnly=false;log('Mode lecture seule désactivé');save();renderHeader();if(R[CUR])R[CUR]();toast('Modifications réactivées');}
   else toast('Code PIN incorrect');
  }
+};
+document.getElementById('btn-refresh').onclick=async function(){
+ if(!COMPANY||!SB){location.reload();return;}
+ setSync(' · actualisation…');
+ try{
+  if(PENDING||SAVING){clearTimeout(SAVE_T);await flushSave();}
+  const co=await SB.from('companies').select('*').eq('id',COMPANY.id).single();
+  if(!co.error&&co.data){COMPANY=co.data;applyCompany();}
+  if(licDaysLeft()<=0){renderHeader();showExpired();return;}
+  const cd=await SB.from('company_data').select('data,version').eq('company_id',COMPANY.id).single();
+  if(cd.error)throw cd.error;
+  hydrate(cd.data);
+  renderHeader();if(R[CUR])R[CUR]();
+  setSync(' · ✓ synchronisé');toast('Données actualisées');
+ }catch(e){setSync(' · hors ligne');toast('Actualisation impossible — vérifiez la connexion');}
 };
 
 /* ===== Écrans d'accès ===== */
@@ -377,9 +397,10 @@ function applyCompany(){
 }
 function hydrate(cd){
  DOC_VERSION=cd.version;const d=cd.data||{};
- ['products','tx','employees','salPays','goals','invoices','journal'].forEach(k=>S[k]=Array.isArray(d[k])?d[k]:[]);
+ ['products','accounts','clients','tx','employees','salPays','goals','invoices','journal'].forEach(k=>S[k]=Array.isArray(d[k])?d[k]:[]);
  S.settings=Object.assign({},DEFAULT.settings,d.settings||{});
  S.company.logo=d.logo||null;
+ if(!S.accounts.length)S.accounts=[{id:'a_caisse',name:'Caisse'},{id:'a_banque',name:'Banque'},{id:'a_om',name:'Orange Money'},{id:'a_wave',name:'Wave'}];
 }
 async function loadWorkspace(){
  obShow('<div class="empty">Chargement de votre espace…</div>',1);
@@ -464,6 +485,7 @@ function obRenderP(){document.getElementById('ob-plist').innerHTML=OB.products.m
 function obDelP(id){OB.products=OB.products.filter(x=>x.id!==id);obRenderP();}
 function obFinish(){
  S.products=OB.products;S.company.logo=OB.logo||null;
+ S.accounts=[{id:'a_caisse',name:'Caisse'},{id:'a_banque',name:'Banque'},{id:'a_om',name:'Orange Money'},{id:'a_wave',name:'Wave'}];
  log('Espace Trezo Cloud configuré pour '+S.company.name);
  save();
  document.getElementById('ob').classList.remove('open');
@@ -493,12 +515,15 @@ async function cloudSignOut(){try{await SB.auth.signOut();}catch(e){}location.re
 <script>
 'use strict';
 /* ===== Données agrégées ===== */
-const txMonth=(m,t)=>S.tx.filter(x=>x.type===t&&x.date.slice(0,7)===m).reduce((a,x)=>a+x.amount,0);
+const txMonth=(m,t)=>S.tx.filter(x=>!x.xfer&&x.type===t&&x.date.slice(0,7)===m).reduce((a,x)=>a+x.amount,0);
 const solde=()=>S.tx.reduce((a,x)=>a+(x.type==='in'?x.amount:-x.amount),0);
 function last6(){const r=[],d=new Date();for(let i=5;i>=0;i--){const t=new Date(d.getFullYear(),d.getMonth()-i,1);r.push(t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0'));}return r;}
+const accOf=x=>(x.acc&&S.accounts.some(a=>a.id===x.acc))?x.acc:(S.accounts[0]?S.accounts[0].id:null);
+const accName=id=>{const a=S.accounts.find(a=>a.id===id);return a?a.name:'Caisse';};
+const accBal=id=>S.tx.reduce((s,x)=>accOf(x)===id?s+(x.type==='in'?x.amount:-x.amount):s,0);
 function txRow(x,del){
  const p=x.productId?S.products.find(q=>q.id===x.productId):null;
- return `<div class="row"><div class="dot ${x.type}">${x.type==='in'?'+':'−'}</div><div class="rmain"><div class="rt">${esc(x.desc||x.cat)}${p?' · '+esc(p.name)+(x.qty?' ×'+x.qty:''):''}</div><div class="rs">${dateLabel(x.date)} — ${esc(x.cat)}</div></div><div class="ramt ${x.type}">${x.type==='in'?'+':'−'} ${fmt(x.amount)}</div>${del&&x.type==='in'?(x.invId?`<button class="btn btn-sm btn-o" onclick="invPreview('${x.invId}')">Facture</button>`:`<button class="btn btn-sm btn-a adm" onclick="invoiceFromTx('${x.id}')">Facturer</button>`):''}${del?`<button class="btn btn-sm btn-d adm" onclick="delTx('${x.id}')">✕</button>`:''}</div>`;
+ return `<div class="row"><div class="dot ${x.type}">${x.type==='in'?'+':'−'}</div><div class="rmain"><div class="rt">${esc(x.desc||x.cat)}${p?' · '+esc(p.name)+(x.qty?' ×'+x.qty:''):''}</div><div class="rs">${dateLabel(x.date)} — ${esc(x.cat)} · ${esc(accName(accOf(x)))}${x.hist&&x.hist.length?' · <span style="color:var(--ambre-fonce);font-weight:700">modifié</span>':''}</div></div><div class="ramt ${x.type}">${x.type==='in'?'+':'−'} ${fmt(x.amount)}</div>${del?`<button class="btn btn-sm btn-o adm" onclick="editTx('${x.id}')">✎</button>`:''}${del&&x.type==='in'?(x.invId?`<button class="btn btn-sm btn-o" onclick="invPreview('${x.invId}')">Facture</button>`:`<button class="btn btn-sm btn-a adm" onclick="invoiceFromTx('${x.id}')">Facturer</button>`):''}${del?`<button class="btn btn-sm btn-d adm" onclick="delTx('${x.id}')">✕</button>`:''}</div>`;
 }
 
 /* ===== Tableau de bord ===== */
@@ -521,6 +546,7 @@ R.dash=function(){
   <div class="kpi"><div class="lbl">Résultat (mois)</div><div class="val" style="color:${enc-dec>=0?'var(--vert)':'var(--rouge)'}">${fmt(enc-dec)}</div></div>
   <div class="kpi"><div class="lbl">Objectif du mois</div><div class="val">${goal?Math.round(enc/goal.target*100)+' %':'—'}</div>${goal?`<div class="pbar"><i class="${enc>=goal.target?'done':''}" style="width:${Math.min(100,enc/goal.target*100)}%"></i></div>`:'<div class="fine">Définir dans Objectifs</div>'}</div>
  </div>
+ <div class="card"><h3>Soldes par compte</h3><div class="kgrid" style="margin-bottom:0">${S.accounts.map(a=>`<div class="kpi"><div class="lbl">${esc(a.name)}</div><div class="val" style="font-size:1.02rem">${fmt(accBal(a.id))}</div></div>`).join('')}</div></div>
  ${low.length?`<div class="card" style="border-color:var(--rouge)"><h3 style="color:var(--rouge)">⚠ Stock bas</h3>${low.map(p=>`<div class="row"><div class="rmain"><div class="rt">${esc(p.name)}</div></div><span class="chip chip-r">${p.qty} restant(s)</span></div>`).join('')}</div>`:''}
  <div class="grid2" style="margin-bottom:1rem"><button class="btn btn-o" onclick="monthlyReport()">Rapport du mois (PDF)</button><button class="btn btn-o" onclick="exportExcel()">Export Excel</button></div>
  <div class="charts">
@@ -551,11 +577,13 @@ R.flux=function(){
  document.getElementById('v-flux').innerHTML=`
  <div class="tabs"><button class="${FLUX==='in'?'on':''}" onclick="FLUX='in';R.flux()">Encaissements</button><button class="t-out ${FLUX==='out'?'on':''}" onclick="FLUX='out';R.flux()">Décaissements</button></div>
  <div class="grid2 adm" style="margin-bottom:1rem"><button class="btn btn-o" onclick="importTpl()">Importer un template</button><button class="btn btn-o" onclick="downloadTpl()">Modèle .xlsx</button></div>
+ <button class="btn btn-o btn-full adm" style="margin-bottom:1rem" onclick="xferOpen()">⇄ Transfert entre comptes</button>
  <div class="card adm">
   <h3>${FLUX==='in'?'Nouvel encaissement':'Nouveau décaissement'}</h3>
   ${FLUX==='in'&&S.products.length?`<label>Produit vendu (optionnel — met le stock à jour)</label><select id="f-prod" onchange="fluxProd()"><option value="">— Saisie libre —</option>${S.products.map(p=>`<option value="${p.id}">${esc(p.name)} (${NF.format(p.price)} ${S.company.symbol} · stock ${p.qty})</option>`).join('')}</select><div id="f-qty-wrap" style="display:none"><label>Quantité</label><input id="f-qty" type="number" min="1" value="1" oninput="fluxProd()"></div>`:''}
   <div class="grid2"><div><label>Montant (${S.company.symbol})</label><input id="f-amt" type="number" min="0" inputmode="numeric"></div><div><label>Date</label><input id="f-date" type="date" value="${todayStr()}"></div></div>
   <label>Catégorie</label><select id="f-cat">${cats.map(c=>`<option>${c}</option>`).join('')}</select>
+  <label>Compte / mode</label><select id="f-acc">${S.accounts.map(a=>`<option value="${a.id}">${esc(a.name)}</option>`).join('')}</select>
   <label>Description (optionnel)</label><input id="f-desc" placeholder="${FLUX==='in'?'Ex. : Vente comptoir':'Ex. : Facture électricité juin'}">
   <button class="btn ${FLUX==='in'?'btn-p':'btn-d'} btn-full mt" onclick="addTx()">Enregistrer</button>
  </div>
@@ -598,7 +626,7 @@ function addTx(){
   if(p){if(qty>p.qty&&!confirm('Stock insuffisant ('+p.qty+' dispo). Enregistrer quand même ?'))return;productId=p.id;p.qty=Math.max(0,p.qty-qty);}
  }
  const desc=document.getElementById('f-desc').value.trim();
- S.tx.push({id:uid(),type:FLUX,amount:amt,cat:document.getElementById('f-cat').value,desc,date:document.getElementById('f-date').value||todayStr(),productId,qty});
+ S.tx.push({id:uid(),type:FLUX,amount:amt,cat:document.getElementById('f-cat').value,desc,date:document.getElementById('f-date').value||todayStr(),acc:document.getElementById('f-acc').value,productId,qty});
  log((FLUX==='in'?'Encaissement':'Décaissement')+' de '+fmt(amt)+(desc?' — '+desc:'')+(productId?' (stock mis à jour)':''));
  save();R.flux();toast('Opération enregistrée');
 }
@@ -609,6 +637,71 @@ function delTx(id){
  S.tx=S.tx.filter(x=>x.id!==id);
  log('Opération supprimée ('+fmt(t.amount)+')');
  save();if(R[CUR])R[CUR]();
+}
+function editTx(id){
+ const t=S.tx.find(x=>x.id===id);if(!t)return;
+ const cats=t.type==='in'?CAT_IN:CAT_OUT;
+ const p=t.productId?S.products.find(q=>q.id===t.productId):null;
+ openModal(`<h2>Modifier l’opération <button class="close" onclick="closeSheet('sheet-modal')">×</button></h2>
+ ${p?`<p class="fine">Liée au produit <b>${esc(p.name)}</b> — modifier la quantité ajustera automatiquement le stock.</p><label>Quantité</label><input id="et-qty" type="number" min="1" value="${t.qty||1}">`:''}
+ <div class="grid2"><div><label>Montant (${S.company.symbol})</label><input id="et-amt" type="number" min="0" value="${t.amount}"></div><div><label>Date</label><input id="et-date" type="date" value="${t.date}"></div></div>
+ <label>Catégorie</label><select id="et-cat">${cats.map(c=>`<option ${c===t.cat?'selected':''}>${c}</option>`).join('')}${cats.indexOf(t.cat)<0?`<option selected>${esc(t.cat)}</option>`:''}</select>
+ <label>Compte / mode</label><select id="et-acc">${S.accounts.map(a=>`<option value="${a.id}" ${accOf(t)===a.id?'selected':''}>${esc(a.name)}</option>`).join('')}</select>
+ <label>Description</label><input id="et-desc" value="${esc(t.desc||'')}">
+ ${t.hist&&t.hist.length?`<label>Historique des modifications</label><div class="fine" style="max-height:130px;overflow:auto;border:1px solid var(--ligne);border-radius:10px;padding:.5rem .7rem">${t.hist.map(h=>`<div style="padding:.3rem 0;border-bottom:1px solid var(--ligne)"><b>${new Date(h.d).toLocaleString('fr-FR')}</b>${h.by?' — '+esc(h.by):''}<br>${esc(h.txt)}</div>`).join('')}</div>`:''}
+ <button class="btn btn-p btn-full mt" onclick="saveTxEdit('${t.id}')">Enregistrer les modifications</button>`);
+}
+function saveTxEdit(id){
+ const t=S.tx.find(x=>x.id===id);if(!t)return;
+ const amt=+document.getElementById('et-amt').value;
+ const date=document.getElementById('et-date').value||t.date;
+ const cat=document.getElementById('et-cat').value;
+ const desc=document.getElementById('et-desc').value.trim();
+ const nacc=document.getElementById('et-acc').value;
+ if(!amt||amt<=0){toast('Montant invalide');return;}
+ const ch=[];
+ if(t.productId){
+  const p=S.products.find(q=>q.id===t.productId);
+  const nq=+((document.getElementById('et-qty')||{}).value)||t.qty||1;
+  if(p&&nq!==(t.qty||1)){
+   const delta=nq-(t.qty||1);
+   if(delta>0&&p.qty<delta&&!confirm('Stock insuffisant ('+p.qty+' disponibles). Continuer quand même ?'))return;
+   p.qty=Math.max(0,p.qty-delta);
+   ch.push('Quantité : '+(t.qty||1)+' → '+nq+' (stock ajusté)');
+   t.qty=nq;
+  }
+ }
+ if(amt!==t.amount)ch.push('Montant : '+fmt(t.amount)+' → '+fmt(amt));
+ if(date!==t.date)ch.push('Date : '+t.date+' → '+date);
+ if(cat!==t.cat)ch.push('Catégorie : '+t.cat+' → '+cat);
+ if(nacc!==accOf(t))ch.push('Compte : '+accName(accOf(t))+' → '+accName(nacc));
+ if(desc!==(t.desc||''))ch.push('Description modifiée');
+ if(!ch.length){closeSheet('sheet-modal');return;}
+ t.amount=amt;t.date=date;t.cat=cat;t.desc=desc;t.acc=nacc;
+ t.hist=Array.isArray(t.hist)?t.hist:[];
+ t.hist.unshift({d:new Date().toISOString(),by:(SESSION&&SESSION.user&&SESSION.user.email)||'',txt:ch.join(' · ')});
+ if(t.hist.length>20)t.hist.length=20;
+ log('Opération modifiée — '+ch.join(' · '));
+ save();closeSheet('sheet-modal');if(R[CUR])R[CUR]();toast('Opération modifiée');
+}
+function xferOpen(){
+ if(S.accounts.length<2){toast('Ajoutez un second compte dans Réglages');return;}
+ openModal(`<h2>Transfert entre comptes <button class="close" onclick="closeSheet('sheet-modal')">×</button></h2>
+ <p class="fine">Déplace de l’argent d’une poche à l’autre (dépôt d’espèces en banque, retrait Wave vers la caisse…) sans modifier vos encaissements ni votre résultat.</p>
+ <div class="grid2"><div><label>Depuis</label><select id="xf-from">${S.accounts.map(a=>`<option value="${a.id}">${esc(a.name)} (${fmt(accBal(a.id))})</option>`).join('')}</select></div><div><label>Vers</label><select id="xf-to">${S.accounts.map((a,i)=>`<option value="${a.id}" ${i===1?'selected':''}>${esc(a.name)}</option>`).join('')}</select></div></div>
+ <div class="grid2"><div><label>Montant (${S.company.symbol})</label><input id="xf-amt" type="number" min="1"></div><div><label>Date</label><input id="xf-date" type="date" value="${todayStr()}"></div></div>
+ <button class="btn btn-p btn-full mt" onclick="xferDo()">Effectuer le transfert</button>`);
+}
+function xferDo(){
+ const from=document.getElementById('xf-from').value,to=document.getElementById('xf-to').value;
+ const amt=+document.getElementById('xf-amt').value,d=document.getElementById('xf-date').value||todayStr();
+ if(from===to){toast('Choisissez deux comptes différents');return;}
+ if(!amt||amt<=0){toast('Montant invalide');return;}
+ const lbl='Transfert '+accName(from)+' → '+accName(to);
+ S.tx.push({id:uid(),type:'out',amount:amt,cat:'Transfert interne',desc:lbl,date:d,acc:from,productId:null,qty:null,xfer:true});
+ S.tx.push({id:uid(),type:'in',amount:amt,cat:'Transfert interne',desc:lbl,date:d,acc:to,productId:null,qty:null,xfer:true});
+ log(lbl+' : '+fmt(amt));
+ save();closeSheet('sheet-modal');if(R[CUR])R[CUR]();toast('Transfert enregistré');
 }
 
 /* ===== Salaires ===== */
@@ -726,25 +819,95 @@ function saveProd(id){
 }
 
 /* ===== Factures ===== */
-let INV_LINES=[],INV_FROM_TX=null,INV_DATE=null,FFILT='all';
+let INV_LINES=[],INV_FROM_TX=null,INV_DATE=null,FFILT='all',FQ='',FMM='',FSORT='num',FDIR=-1;
 function invTotals(iv){const ht=iv.lines.reduce((a,l)=>a+l.qty*l.pu,0),tva=ht*(iv.tva||0)/100;return{ht,tva,ttc:ht+tva};}
+function invPaid(iv){if(Array.isArray(iv.pays))return iv.pays.reduce((a,p)=>a+p.amount,0);return iv.paid?invTotals(iv).ttc:0;}
+function invStatus(iv){if(iv.cancelled)return'cancel';const t=invTotals(iv).ttc,r=invPaid(iv);if(r>=t-0.5)return'paid';if(r>0)return'part';return'unpaid';}
 R.fact=function(){
- const all=[...S.invoices].sort((a,b)=>b.num.localeCompare(a.num));
- const list=all.filter(iv=>FFILT==='all'||(FFILT==='paid'?iv.paid:!iv.paid));
- const nb={all:all.length,paid:all.filter(i=>i.paid).length,unpaid:all.filter(i=>!i.paid).length};
  document.getElementById('v-fact').innerHTML=`
  <button class="btn btn-p btn-full adm" onclick="newInvoice()" style="margin-bottom:1rem">+ Nouvelle facture</button>
- <div class="tabs"><button class="${FFILT==='all'?'on':''}" onclick="FFILT='all';R.fact()">Toutes (${nb.all})</button><button class="${FFILT==='paid'?'on':''}" onclick="FFILT='paid';R.fact()">Payées (${nb.paid})</button><button class="${FFILT==='unpaid'?'on':''}" onclick="FFILT='unpaid';R.fact()">Non payées (${nb.unpaid})</button></div>
- <div class="card"><h2>Historique</h2>
- ${list.map(iv=>{
-  const t=invTotals(iv);
-  return `<div class="row"><div class="rmain"><div class="rt">${esc(iv.num)} — ${esc(iv.client)}</div><div class="rs">${dateLabel(iv.date)} · ${fmt(t.ttc)}</div></div>${iv.paid?'<span class="chip chip-g">Payée</span>':'<span class="chip chip-a">En attente</span>'}<button class="btn btn-sm btn-o" onclick="invPreview('${iv.id}')">Aperçu</button>${iv.paid?'':`<button class="btn btn-sm btn-p adm" onclick="invPay('${iv.id}')">Encaisser</button><button class="btn btn-sm btn-d adm" onclick="invDel('${iv.id}')">✕</button>`}</div>`;
- }).join('')||'<div class="empty">Aucune facture dans ce filtre.</div>'}</div>`;
+ <div class="tabs"><button class="${FFILT==='all'?'on':''}" onclick="FFILT='all';renderFactTable()">Toutes</button><button class="${FFILT==='paid'?'on':''}" onclick="FFILT='paid';renderFactTable()">Payées</button><button class="${FFILT==='part'?'on':''}" onclick="FFILT='part';renderFactTable()">Partielles</button><button class="${FFILT==='unpaid'?'on':''}" onclick="FFILT='unpaid';renderFactTable()">Impayées</button><button class="${FFILT==='cancel'?'on':''}" onclick="FFILT='cancel';renderFactTable()">Annulées</button></div>
+ <div class="card"><h2>Suivi des factures &amp; créances clients</h2>
+  <div class="grid2" style="margin:.6rem 0 .7rem"><input placeholder="Rechercher (client, n° facture…)" value="${esc(FQ)}" oninput="FQ=this.value;renderFactTable()"><input type="month" value="${FMM}" onchange="FMM=this.value;renderFactTable()"></div>
+  <div class="grid2" style="margin-bottom:.8rem"><button class="btn btn-o btn-sm" onclick="exportFactXls()">Exporter Excel</button><button class="btn btn-o btn-sm" onclick="exportFactPdf()">Exporter PDF</button></div>
+  <div id="fact-tot" class="fine" style="margin-bottom:.6rem"></div>
+  <div class="twrap" id="fact-table"></div></div>`;
+ renderFactTable();
 };
+function factList(){
+ const q=FQ.trim().toLowerCase();
+ let list=S.invoices.filter(iv=>{
+  if(FFILT!=='all'&&invStatus(iv)!==FFILT)return false;
+  if(FMM&&iv.date.slice(0,7)!==FMM)return false;
+  if(q&&(iv.client+' '+iv.num).toLowerCase().indexOf(q)<0)return false;
+  return true;
+ });
+ list.sort((a,b)=>{
+  let va,vb;
+  if(FSORT==='ttc'){va=invTotals(a).ttc;vb=invTotals(b).ttc;}
+  else if(FSORT==='solde'){va=invTotals(a).ttc-invPaid(a);vb=invTotals(b).ttc-invPaid(b);}
+  else if(FSORT==='client'){va=a.client.toLowerCase();vb=b.client.toLowerCase();}
+  else if(FSORT==='date'){va=a.date;vb=b.date;}
+  else{va=a.num;vb=b.num;}
+  return (va<vb?-1:va>vb?1:0)*FDIR;
+ });
+ return list;
+}
+function setFactSort(k){if(FSORT===k)FDIR=-FDIR;else{FSORT=k;FDIR=(k==='client')?1:-1;}renderFactTable();}
+function renderFactTable(){
+ const el=document.getElementById('fact-table');if(!el)return;
+ const list=factList();
+ const ar=k=>FSORT===k?(FDIR>0?' ▲':' ▼'):'';
+ let tT=0,tR=0;
+ const rows=list.map(iv=>{
+  const t=invTotals(iv),reg=invPaid(iv),sol=Math.max(0,t.ttc-reg),st=invStatus(iv);
+  if(st!=='cancel'){tT+=t.ttc;tR+=reg;}
+  const chip=st==='cancel'?'<span class="chip" style="background:#ECE8DE;color:#8a8578">Annulée</span>':st==='paid'?'<span class="chip chip-g">Payée</span>':st==='part'?'<span class="chip chip-a">Partielle</span>':'<span class="chip chip-r">Impayée</span>';
+  return `<tr><td><b>${esc(iv.num)}</b></td><td>${dateLabel(iv.date)}</td><td>${esc(iv.client)}</td><td style="text-align:right">${NF.format(t.ttc)}</td><td style="text-align:right">${NF.format(reg)}</td><td style="text-align:right;font-weight:800;color:${sol>0?'var(--rouge)':'var(--vert)'}">${NF.format(sol)}</td><td>${chip}</td><td style="white-space:nowrap"><button class="btn btn-sm btn-o" onclick="invPreview('${iv.id}')">Aperçu</button> ${st!=='cancel'&&sol>0?`<button class="btn btn-sm btn-p adm" onclick="invPayOpen('${iv.id}')">Encaisser</button>`:''} ${st!=='cancel'&&reg<=0?`<button class="btn btn-sm btn-d adm" onclick="invDel('${iv.id}')">Supprimer</button>`:''} ${st!=='cancel'&&reg>0?`<button class="btn btn-sm btn-d adm" onclick="invCancelOpen('${iv.id}')">Annuler</button>`:''}</td></tr>`;
+ }).join('');
+ document.getElementById('fact-tot').innerHTML='<b>'+list.length+'</b> facture(s) — Total TTC : <b>'+fmt(tT)+'</b> · Réglé : <b>'+fmt(tR)+'</b> · Reste dû : <b style="color:'+(tT-tR>0.5?'var(--rouge)':'var(--vert)')+'">'+fmt(Math.max(0,tT-tR))+'</b>';
+ el.innerHTML=`<table><tr>
+  <th class="thsort" onclick="setFactSort('num')">N°${ar('num')}</th>
+  <th class="thsort" onclick="setFactSort('date')">Date${ar('date')}</th>
+  <th class="thsort" onclick="setFactSort('client')">Client${ar('client')}</th>
+  <th class="thsort" style="text-align:right" onclick="setFactSort('ttc')">TTC${ar('ttc')}</th>
+  <th style="text-align:right">Réglé</th>
+  <th class="thsort" style="text-align:right" onclick="setFactSort('solde')">Reste dû${ar('solde')}</th>
+  <th>Statut</th><th></th></tr>${rows||'<tr><td colspan="8"><div class="empty">Aucune facture dans ce filtre.</div></td></tr>'}</table>`;
+}
+function exportFactXls(){
+ if(!window.XLSX){toast('Module Excel non chargé — connectez-vous une fois à Internet');return;}
+ const rows=factList().map(iv=>{const t=invTotals(iv),reg=invPaid(iv);return{'N°':iv.num,'Date':iv.date,'Client':iv.client,'Téléphone':iv.phone||'','Total TTC':t.ttc,'Réglé':reg,'Reste dû':Math.max(0,t.ttc-reg),'Statut':invStatus(iv)==='cancel'?'Annulée':invStatus(iv)==='paid'?'Payée':invStatus(iv)==='part'?'Partielle':'Impayée'};});
+ const wb=XLSX.utils.book_new();
+ XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(rows),'Suivi factures');
+ XLSX.writeFile(wb,'suivi-factures-'+todayStr()+'.xlsx');
+ log('Export Excel du suivi des factures');save();
+}
+function exportFactPdf(){
+ if(!window.jspdf){toast('Module PDF non chargé — connectez-vous une fois à Internet');return;}
+ const doc=new window.jspdf.jsPDF({orientation:'landscape'});
+ if(typeof doc.autoTable!=='function'){toast('Module tableaux PDF non chargé — rechargez la page');return;}
+ doc.setFillColor(14,90,69);doc.rect(0,0,297,24,'F');
+ doc.setTextColor(255,255,255);doc.setFont('helvetica','bold');doc.setFontSize(13);
+ doc.text(String(S.company.name).slice(0,60),14,11);
+ doc.setFontSize(9);doc.setFont('helvetica','normal');
+ doc.text('Suivi des factures et créances — généré le '+new Date().toLocaleDateString('fr-FR'),14,18);
+ const right={halign:'right'};
+ let tT=0,tR=0;
+ const body=factList().map(iv=>{const t=invTotals(iv),reg=invPaid(iv);if(invStatus(iv)!=='cancel'){tT+=t.ttc;tR+=reg;}
+  return[iv.num,dateLabel(iv.date),iv.client,{content:pdfN(t.ttc),styles:right},{content:pdfN(reg),styles:right},{content:pdfN(Math.max(0,t.ttc-reg)),styles:right},invStatus(iv)==='cancel'?'Annulée':invStatus(iv)==='paid'?'Payée':invStatus(iv)==='part'?'Partielle':'Impayée'];});
+ doc.autoTable({startY:30,margin:{left:14,right:14},styles:{font:'helvetica',fontSize:8.5},headStyles:{fillColor:[14,90,69]},alternateRowStyles:{fillColor:[250,248,244]},
+  head:[['N°','Date','Client',{content:'TTC ('+S.company.symbol+')',styles:right},{content:'Réglé',styles:right},{content:'Reste dû',styles:right},'Statut']],
+  body:body,
+  foot:[['','','TOTAL',{content:pdfN(tT),styles:right},{content:pdfN(tR),styles:right},{content:pdfN(Math.max(0,tT-tR)),styles:right},'']],
+  footStyles:{fillColor:[247,243,236],textColor:[28,36,32],fontStyle:'bold'}});
+ doc.save('suivi-factures-'+todayStr()+'.pdf');
+ log('Export PDF du suivi des factures');save();
+}
 function invModal(title,hint){
  openModal(`<h2>${title} <button class="close" onclick="closeSheet('sheet-modal')">×</button></h2>
  ${hint?'<p class="fine">'+hint+'</p>':''}
- <label>Client</label><input id="iv-client" placeholder="Nom du client">
+ <label>Client</label><input id="iv-client" list="dl-cli" placeholder="Nom du client — la base propose vos clients" oninput="invCliMatch()"><datalist id="dl-cli">${S.clients.map(c=>`<option value="${esc(cliFull(c))}">`).join('')}</datalist><div id="iv-cli-hint" class="fine"></div>
  <div class="grid2"><div><label>Téléphone (optionnel)</label><input id="iv-tel"></div><div><label>Date</label><input id="iv-date" type="date" value="${INV_DATE||todayStr()}"></div></div>
  <label>Lignes</label><div id="iv-lines"></div>
  <button class="btn btn-a btn-sm" onclick="invAddLine()">+ Ajouter une ligne</button>
@@ -793,13 +956,18 @@ function invTotalPrev(){
 function saveInvoice(){
  const client=document.getElementById('iv-client').value.trim();
  if(!client){toast('Nom du client requis');return;}
+ let cli=S.clients.find(x=>cliFull(x).toLowerCase()===client.toLowerCase());
+ const telv=document.getElementById('iv-tel').value.trim();
+ if(!cli){cli={id:uid(),name:client,firstname:'',phone:telv,address:''};S.clients.push(cli);log('Client ajouté depuis la facturation : '+client);}
+ else if(telv&&!cli.phone){cli.phone=telv;}
  const lines=INV_LINES.filter(l=>l.label.trim()&&l.qty>0).map(l=>({label:l.label.trim(),qty:l.qty,pu:l.pu,productId:l.productId||null}));
  if(!lines.length){toast('Ajoutez au moins une ligne');return;}
  const fromTx=INV_FROM_TX?S.tx.find(x=>x.id===INV_FROM_TX):null;
  if(!fromTx){for(const l of lines){if(l.productId){const p=S.products.find(x=>x.id===l.productId);if(p&&p.qty<l.qty){toast('Stock insuffisant pour '+p.name+' ('+p.qty+' dispo)');return;}}}}
  S.settings.invSeq++;
  const num='TRZ-'+new Date().getFullYear()+'-'+String(S.settings.invSeq).padStart(3,'0');
- const iv={id:uid(),num,client,phone:document.getElementById('iv-tel').value.trim(),date:document.getElementById('iv-date').value||todayStr(),lines,tva:+document.getElementById('iv-tva').value||0,paid:!!fromTx};
+ const iv={id:uid(),num,client,clientId:cli.id,phone:document.getElementById('iv-tel').value.trim(),date:document.getElementById('iv-date').value||todayStr(),lines,tva:+document.getElementById('iv-tva').value||0,paid:!!fromTx};
+ if(fromTx)iv.pays=[{d:iv.date,amount:invTotals(iv).ttc}];
  if(!fromTx)lines.forEach(l=>{if(l.productId){const p=S.products.find(x=>x.id===l.productId);if(p)p.qty=Math.max(0,p.qty-l.qty);}});
  S.invoices.push(iv);
  if(fromTx){fromTx.invId=iv.id;log('Facture générée depuis un encaissement : '+num+' — '+client+' ('+fmt(invTotals(iv).ttc)+')');}
@@ -809,21 +977,53 @@ function saveInvoice(){
  save();closeSheet('sheet-modal');if(R[CUR])R[CUR]();toast('Facture '+num+(wasFromTx?' générée':' créée'));
  if(wasFromTx)setTimeout(()=>invPreview(iv.id),150);
 }
-function invPay(id){
+function invPayOpen(id){
  const iv=S.invoices.find(x=>x.id===id);if(!iv)return;
- const t=invTotals(iv);
- if(!confirm('Encaisser la facture '+iv.num+' ('+fmt(t.ttc)+') ? Un encaissement sera créé.'))return;
- iv.paid=true;
- S.tx.push({id:uid(),type:'in',amount:t.ttc,cat:'Ventes',desc:'Facture '+iv.num+' — '+iv.client,date:todayStr(),productId:null,qty:null});
- log('Facture encaissée : '+iv.num+' ('+fmt(t.ttc)+')');
- save();R.fact();toast('Encaissement enregistré');
+ const t=invTotals(iv),reg=invPaid(iv),sol=Math.max(0,t.ttc-reg);
+ openModal(`<h2>Encaisser — ${esc(iv.num)} <button class="close" onclick="closeSheet('sheet-modal')">×</button></h2>
+ <p class="fine">Client : <b>${esc(iv.client)}</b><br>Total TTC : <b>${fmt(t.ttc)}</b> · Déjà réglé : <b>${fmt(reg)}</b> · Reste dû : <b>${fmt(sol)}</b></p>
+ <label>Montant encaissé (${S.company.symbol}) — acompte ou solde</label><input id="ip-amt" type="number" min="1" value="${sol}">
+ <label>Date</label><input id="ip-date" type="date" value="${todayStr()}">
+ <label>Mode d’encaissement (obligatoire)</label><select id="ip-acc"><option value="">— Choisir : Espèces, Wave, Orange Money… —</option>${S.accounts.map(a=>`<option value="${a.id}">${esc(a.name)}</option>`).join('')}</select>
+ <button class="btn btn-p btn-full mt" onclick="invPayDo('${iv.id}')">Enregistrer l’encaissement</button>`);
+}
+function invPayDo(id){
+ const iv=S.invoices.find(x=>x.id===id);if(!iv)return;
+ const t=invTotals(iv),sol=Math.max(0,t.ttc-invPaid(iv));
+ const amt=+document.getElementById('ip-amt').value;
+ const d=document.getElementById('ip-date').value||todayStr();
+ const pacc=document.getElementById('ip-acc').value;
+ if(!pacc){toast('Choisissez le mode d’encaissement');return;}
+ if(!amt||amt<=0){toast('Montant invalide');return;}
+ if(amt>sol+0.5){toast('Le montant dépasse le reste dû ('+fmt(sol)+')');return;}
+ iv.pays=Array.isArray(iv.pays)?iv.pays:(iv.paid?[{d:iv.date,amount:t.ttc}]:[]);
+ iv.pays.push({d:d,amount:amt});
+ iv.paid=invPaid(iv)>=t.ttc-0.5;
+ S.tx.push({id:uid(),type:'in',amount:amt,cat:'Ventes',desc:'Facture '+iv.num+' — '+iv.client+(iv.paid?'':' (acompte)'),date:d,acc:pacc,productId:null,qty:null});
+ log('Encaissement facture '+iv.num+' ('+accName(pacc)+') : '+fmt(amt)+(iv.paid?' — facture soldée':' — reste dû '+fmt(Math.max(0,t.ttc-invPaid(iv)))));
+ save();closeSheet('sheet-modal');if(R[CUR])R[CUR]();toast(iv.paid?'Facture soldée':'Acompte enregistré');
 }
 function invDel(id){
  const iv=S.invoices.find(x=>x.id===id);if(!iv)return;
+ if(invPaid(iv)>0){toast('Suppression impossible : des règlements sont enregistrés sur cette facture');return;}
  if(!confirm('Supprimer la facture '+iv.num+' ? Les quantités seront remises en stock.'))return;
  iv.lines.forEach(l=>{if(l.productId){const p=S.products.find(x=>x.id===l.productId);if(p)p.qty+=l.qty;}});
  S.invoices=S.invoices.filter(x=>x.id!==id);
- log('Facture supprimée : '+iv.num);save();R.fact();
+ log('Facture supprimée : '+iv.num+' — '+iv.client+' ('+fmt(invTotals(iv).ttc)+')');save();R.fact();toast('Facture supprimée');
+}
+function invCancelOpen(id){
+ const iv=S.invoices.find(x=>x.id===id);if(!iv||iv.cancelled)return;
+ openModal(`<h2>Annuler — ${esc(iv.num)} <button class="close" onclick="closeSheet('sheet-modal')">×</button></h2>
+ <p class="fine">Une facture réglée (totalement ou en partie) ne peut pas être supprimée : elle sera marquée <b>Annulée</b> et exclue des totaux, mais restera visible pour la traçabilité. Les encaissements déjà enregistrés restent dans la trésorerie — créez un décaissement de remboursement si vous rendez l’argent.</p>
+ <label>Motif (optionnel)</label><input id="cx-reason" placeholder="Ex. : erreur de saisie, commande annulée">
+ <button class="btn btn-d btn-full mt" onclick="invCancelDo('${iv.id}')">Confirmer l’annulation</button>`);
+}
+function invCancelDo(id){
+ const iv=S.invoices.find(x=>x.id===id);if(!iv)return;
+ const reason=document.getElementById('cx-reason').value.trim();
+ iv.cancelled={d:new Date().toISOString(),by:(SESSION&&SESSION.user)?SESSION.user.email:'',reason:reason};
+ log('Facture annulée : '+iv.num+' — '+iv.client+' ('+fmt(invTotals(iv).ttc)+')'+(reason?' · Motif : '+reason:''));
+ save();closeSheet('sheet-modal');if(R[CUR])R[CUR]();toast('Facture annulée');
 }
 function invPDF(id){
  if(!window.jspdf){toast('Module PDF non chargé — connectez-vous une fois à Internet');return;}
@@ -854,7 +1054,7 @@ function invPDF(id){
 
 /* ===== Journal ===== */
 R.jour=function(){
- document.getElementById('v-jour').innerHTML=`<div class="card"><h2>Journal d’activité</h2>${S.journal.map(j=>`<div class="row"><div class="rmain"><div class="rt" style="font-weight:600;white-space:normal">${esc(j.txt)}</div><div class="rs">${new Date(j.d).toLocaleString('fr-FR')}</div></div></div>`).join('')||'<div class="empty">Aucune activité enregistrée pour le moment.</div>'}</div>`;
+ document.getElementById('v-jour').innerHTML=`<div class="card"><h2>Journal d’activité</h2>${S.journal.map(j=>`<div class="row"><div class="rmain"><div class="rt" style="font-weight:600;white-space:normal">${esc(j.txt)}</div><div class="rs">${new Date(j.d).toLocaleString('fr-FR')}${j.by?' — '+esc(j.by):''}</div></div></div>`).join('')||'<div class="empty">Aucune activité enregistrée pour le moment.</div>'}</div>`;
 };
 
 /* ===== Réglages ===== */
@@ -874,6 +1074,10 @@ R.set=function(){
  <div class="card"><h2>Compte</h2>
   <p class="fine">Connecté : <b>${esc(email)}</b>. Vos données sont synchronisées dans le cloud et accessibles depuis n’importe quel appareil avec cet identifiant.</p>
   <div class="grid2 mt"><button class="btn btn-o adm" onclick="cloudChangePass()">Changer le mot de passe</button><button class="btn btn-o" onclick="cloudSignOut()">Se déconnecter</button></div></div>
+ <div class="card"><h2>Comptes &amp; modes d’encaissement</h2>
+  <p class="fine">Caisse, banque, mobile money… Chaque flux est rattaché à un compte : vous savez toujours où se trouve l’argent.</p>
+  ${S.accounts.map(a=>`<div class="row"><div class="rmain"><div class="rt">${esc(a.name)}</div><div class="rs">Solde : ${fmt(accBal(a.id))}</div></div><button class="btn btn-sm btn-o adm" onclick="accRename('${a.id}')">Renommer</button><button class="btn btn-sm btn-d adm" onclick="accDel('${a.id}')">✕</button></div>`).join('')}
+  <div class="inline-add mt adm"><input id="acc-new" placeholder="Nouveau compte (ex. : Free Money)"><button class="btn btn-a" onclick="accAdd()">Ajouter</button></div></div>
  <div class="card"><h2>Sécurité &amp; accès client</h2>
   <p class="fine">Le mode lecture seule (bouton 🔒 en haut) permet de confier l’appareil à un employé ou de montrer les chiffres à un client sans risque de modification. Le code PIN protège le déverrouillage.</p>
   <button class="btn btn-o btn-full mt adm" onclick="setPin()">${S.settings.pin?'Changer le code PIN':'Définir un code PIN'}</button></div>
@@ -886,7 +1090,7 @@ R.set=function(){
   <label class="mt adm" style="display:block;margin-top:1rem"><span class="btn btn-o btn-full" style="display:flex">Importer une sauvegarde (migration)</span><input type="file" accept=".json,application/json" style="display:none" onchange="restore(this)"></label>
   <p class="fine mt">La sauvegarde cloud est automatique. L’archive JSON sert de copie personnelle et permet de migrer les données d’une installation Trezo Classique vers le cloud.</p>
   <button class="btn btn-d btn-full mt adm" onclick="resetAll()">Vider les données de l’entreprise</button></div>
- <p class="fine" style="text-align:center;margin:.4rem 0 1.2rem">Trezo Cloud v2.2</p>`;
+ <p class="fine" style="text-align:center;margin:.4rem 0 1.2rem">Trezo Cloud v2.4</p>`;
 };
 function setLogo(inp){const f=inp.files[0];if(!f)return;resizeImg(f,url=>{S.company.logo=url;document.getElementById('s-logo-prev').src=url;save();renderHeader();toast('Logo mis à jour');});}
 async function saveCompany(){
@@ -905,6 +1109,9 @@ async function setPin(){
  if(!p||p.length<4){toast('Code trop court (4 caractères minimum)');return;}
  S.settings.pin=await sha('PIN|'+p);log('Code PIN mis à jour');save();toast('Code PIN enregistré');R.set();
 }
+function accAdd(){const n=document.getElementById('acc-new').value.trim();if(!n){toast('Nom requis');return;}S.accounts.push({id:uid(),name:n});log('Compte ajouté : '+n);save();R.set();}
+function accRename(id){const a=S.accounts.find(x=>x.id===id);if(!a)return;const n=prompt('Nouveau nom du compte :',a.name);if(!n||!n.trim())return;log('Compte renommé : '+a.name+' → '+n.trim());a.name=n.trim();save();R.set();}
+function accDel(id){const a=S.accounts.find(x=>x.id===id);if(!a)return;if(S.accounts.length<=1){toast('Gardez au moins un compte');return;}if(S.tx.some(x=>x.acc===id)){toast('Impossible : des opérations utilisent ce compte');return;}if(!confirm('Supprimer le compte '+a.name+' ?'))return;S.accounts=S.accounts.filter(x=>x.id!==id);log('Compte supprimé : '+a.name);save();R.set();}
 async function renewFromSettings(){
  const k=document.getElementById('s-key').value.trim();
  const msg=document.getElementById('s-key-msg');
@@ -939,7 +1146,8 @@ function restore(inp){
    const d=JSON.parse(e.target.result);
    if(!d.v)throw 0;
    if(!confirm('Remplacer les données actuelles (flux, stocks, factures…) par celles de ce fichier ? Le nom d’entreprise et la licence ne changent pas.'))return;
-   ['products','tx','employees','salPays','goals','invoices','journal'].forEach(k=>{S[k]=Array.isArray(d[k])?d[k]:[];});
+   ['products','accounts','clients','tx','employees','salPays','goals','invoices','journal'].forEach(k=>{S[k]=Array.isArray(d[k])?d[k]:[];});
+   if(!S.accounts.length)S.accounts=[{id:'a_caisse',name:'Caisse'},{id:'a_banque',name:'Banque'},{id:'a_om',name:'Orange Money'},{id:'a_wave',name:'Wave'}];
    S.settings=Object.assign({},DEFAULT.settings,d.settings||{});
    if(d.company&&d.company.logo)S.company.logo=d.company.logo;
    log('Sauvegarde importée ('+S.tx.length+' opérations)');
@@ -959,10 +1167,10 @@ function resetAll(){
 function exportExcel(){
  if(!window.XLSX){toast('Module Excel non chargé — connectez-vous une fois à Internet');return;}
  const wb=XLSX.utils.book_new();
- XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(S.tx.map(x=>({Date:x.date,Type:x.type==='in'?'Encaissement':'Décaissement',Montant:x.amount,'Catégorie':x.cat,Description:x.desc||''}))),'Transactions');
+ XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(S.tx.map(x=>({Date:x.date,Type:x.type==='in'?'Encaissement':'Décaissement',Montant:x.amount,'Catégorie':x.cat,'Compte':accName(accOf(x)),Description:x.desc||''}))),'Transactions');
  XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(S.salPays.map(p=>{const e=S.employees.find(x=>x.id===p.empId);return{Mois:p.month,'Employé':e?e.name:'(retiré)',Montant:p.amount,'Payé le':p.date};})),'Salaires');
  XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(S.products.map(p=>({Produit:p.name,'Prix vente':p.price,'Prix achat':p.cost||0,Stock:p.qty,'Seuil alerte':p.alert}))),'Stocks');
- XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(S.invoices.map(i=>{const t=invTotals(i);return{'Numéro':i.num,Date:i.date,Client:i.client,'Total TTC':t.ttc,Statut:i.paid?'Payée':'En attente'};})),'Factures');
+ XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(S.invoices.map(i=>{const t=invTotals(i),reg=invPaid(i);return{'Numéro':i.num,Date:i.date,Client:i.client,'Total TTC':t.ttc,'Réglé':reg,'Reste dû':Math.max(0,t.ttc-reg),Statut:invStatus(i)==='cancel'?'Annulée':invStatus(i)==='paid'?'Payée':invStatus(i)==='part'?'Partielle':'Impayée'};})),'Factures');
  XLSX.writeFile(wb,'trezo-export-'+todayStr()+'.xlsx');
  log('Export Excel généré');save();
 }
@@ -995,8 +1203,8 @@ let IMP={rows:[],errors:[]};
 const stripAcc=s=>String(s==null?'':s).normalize('NFD').replace(/[\u0300-\u036f]/g,'');
 function downloadTpl(){
  if(!window.XLSX){toast('Module Excel non chargé — connectez-vous une fois à Internet');return;}
- const ws=XLSX.utils.aoa_to_sheet([['Date','Type','Montant','Catégorie','Description'],['2026-07-01','Encaissement',150000,'Ventes','Vente comptoir'],['02/07/2026','Décaissement',40000,'Transport','Carburant semaine']]);
- ws['!cols']=[{wch:12},{wch:15},{wch:12},{wch:16},{wch:28}];
+ const ws=XLSX.utils.aoa_to_sheet([['Date','Type','Montant','Catégorie','Compte','Description'],['2026-07-01','Encaissement',150000,'Ventes','Caisse','Vente comptoir'],['02/07/2026','Décaissement',40000,'Transport','Wave','Carburant semaine']]);
+ ws['!cols']=[{wch:12},{wch:15},{wch:12},{wch:16},{wch:14},{wch:28}];
  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Flux');
  XLSX.writeFile(wb,'trezo-modele-flux.xlsx');
 }
@@ -1043,7 +1251,7 @@ function handleImport(inp){
    const map={};
    Object.keys(rows[0]).forEach(k=>{const n=stripAcc(k).toLowerCase().trim();
     if(n==='date')map.date=k;else if(n==='type')map.type=k;else if(n==='montant'||n==='amount')map.amt=k;
-    else if(n.indexOf('categ')===0)map.cat=k;else if(n.indexOf('desc')===0||n==='libelle')map.desc=k;});
+    else if(n.indexOf('categ')===0)map.cat=k;else if(n.indexOf('desc')===0||n==='libelle')map.desc=k;else if(n.indexOf('compte')===0||n==='mode')map.acc=k;});
    const miss=['date','type','amt'].filter(c=>!map[c]);
    if(miss.length){const noms={date:'Date',type:'Type',amt:'Montant'};res.innerHTML='<div class="msg-err">Structure invalide — colonne(s) manquante(s) : <b>'+miss.map(c=>noms[c]).join(', ')+'</b>. Téléchargez le modèle pour voir le format attendu.</div>';return;}
    IMP={rows:[],errors:[]};
@@ -1055,7 +1263,9 @@ function handleImport(inp){
     if(errs.length){IMP.errors.push('Ligne '+line+' : '+errs.join(', '));return;}
     let cat=map.cat?String(row[map.cat]).trim().slice(0,40):'';
     if(!cat)cat='Autre';
-    IMP.rows.push({type:t,amount:a,date:d,cat:cat,desc:map.desc?String(row[map.desc]).trim().slice(0,120):''});
+    let iacc=null;
+    if(map.acc){const an=stripAcc(String(row[map.acc])).toLowerCase().trim();const fa=S.accounts.find(x=>stripAcc(x.name).toLowerCase()===an);if(fa)iacc=fa.id;}
+    IMP.rows.push({type:t,amount:a,date:d,cat:cat,acc:iacc,desc:map.desc?String(row[map.desc]).trim().slice(0,120):''});
    });
    const errHtml=IMP.errors.length?'<div class="msg-err" style="white-space:normal">'+IMP.errors.slice(0,10).map(esc).join('<br>')+(IMP.errors.length>10?'<br>… et '+(IMP.errors.length-10)+' autre(s) erreur(s)':'')+'</div>':'';
    res.innerHTML='<div class="'+(IMP.errors.length?'msg-err':'msg-ok')+'" style="margin-top:.8rem">'+IMP.rows.length+' ligne(s) valide(s) · '+IMP.errors.length+' erreur(s)</div>'+errHtml+(IMP.rows.length?'<button class="btn btn-p btn-full mt" onclick="doImport()">Importer les '+IMP.rows.length+' opération(s) valide(s)</button>':'');
@@ -1065,7 +1275,7 @@ function handleImport(inp){
 }
 function doImport(){
  if(!IMP.rows.length)return;
- IMP.rows.forEach(x=>S.tx.push({id:uid(),type:x.type,amount:x.amount,cat:x.cat,desc:x.desc,date:x.date,productId:null,qty:null}));
+ IMP.rows.forEach(x=>S.tx.push({id:uid(),type:x.type,amount:x.amount,cat:x.cat,desc:x.desc,date:x.date,acc:x.acc||null,productId:null,qty:null}));
  log('Import de '+IMP.rows.length+' opération(s) depuis un fichier');
  save();closeSheet('sheet-modal');R.flux();toast(IMP.rows.length+' opérations importées');
  IMP={rows:[],errors:[]};
@@ -1074,8 +1284,8 @@ function doImport(){
 /* ===== Facture : aperçu identique au document final + impression ===== */
 function invDocHTML(iv){
  const t=invTotals(iv);
- return `<div class="inv-doc"><div class="inv-head">${S.company.logo?`<img src="${S.company.logo}" alt="">`:''}<div><div class="inv-co">${esc(S.company.name)}</div><div class="inv-num">FACTURE ${esc(iv.num)}${iv.paid?' — PAYÉE':''}</div></div></div>
- <div class="inv-meta"><div><b>Client :</b> ${esc(iv.client)}${iv.phone?'<br><b>Tél :</b> '+esc(iv.phone):''}</div><div><b>Date :</b> ${dateLabel(iv.date)}</div></div>
+ return `<div class="inv-doc"><div class="inv-head">${S.company.logo?`<img src="${S.company.logo}" alt="">`:''}<div><div class="inv-co">${esc(S.company.name)}</div><div class="inv-num">FACTURE ${esc(iv.num)}${invStatus(iv)==='cancel'?' — ANNULÉE':invStatus(iv)==='paid'?' — PAYÉE':invStatus(iv)==='part'?' — PARTIELLEMENT RÉGLÉE':''}</div></div></div>
+ <div class="inv-meta"><div><b>Client :</b> ${esc(iv.client)}${iv.phone?'<br><b>Tél :</b> '+esc(iv.phone):''}${(function(){const c=iv.clientId?S.clients.find(x=>x.id===iv.clientId):null;return c&&c.address?'<br><b>Adresse :</b> '+esc(c.address):'';})()}</div><div><b>Date :</b> ${dateLabel(iv.date)}${invStatus(iv)==='part'?'<br><b>Réglé :</b> '+fmt(invPaid(iv))+' — <b>Reste dû :</b> '+fmt(invTotals(iv).ttc-invPaid(iv)):''}</div></div>
  <table class="inv-table"><thead><tr><th>Désignation</th><th style="text-align:right">Qté</th><th style="text-align:right">P.U. (${esc(S.company.symbol)})</th><th style="text-align:right">Total</th></tr></thead><tbody>${iv.lines.map(l=>`<tr><td>${esc(l.label)}</td><td style="text-align:right">${l.qty}</td><td style="text-align:right">${NF.format(l.pu)}</td><td style="text-align:right">${NF.format(l.qty*l.pu)}</td></tr>`).join('')}</tbody></table>
  <div class="inv-tot"><div>Total HT : ${fmt(t.ht)}</div>${iv.tva>0?`<div>TVA (${iv.tva} %) : ${fmt(t.tva)}</div>`:''}<div class="ttc">Total TTC : ${fmt(t.ttc)}</div></div>
  <div class="inv-foot">Facture générée avec Trezo</div></div>`;
@@ -1091,6 +1301,113 @@ function invPrint(id){
  document.getElementById('print-area').innerHTML=invDocHTML(iv);
  log('Impression : '+iv.num);save();
  setTimeout(()=>window.print(),50);
+}
+
+/* ===== Base de données clients ===== */
+let CLIQ='';
+function cliFull(c){return (c.name+(c.firstname?' '+c.firstname:'')).trim();}
+R.cli=function(){
+ document.getElementById('v-cli').innerHTML=`
+ <div class="card adm"><h2>Nouveau client</h2>
+  <div class="grid2"><div><label>Nom / Raison sociale</label><input id="c-name"></div><div><label>Prénom (si particulier)</label><input id="c-first"></div></div>
+  <div class="grid2"><div><label>Téléphone</label><input id="c-tel" inputmode="tel"></div><div><label>Adresse</label><input id="c-addr"></div></div>
+  <button class="btn btn-p btn-full mt" onclick="cliAdd()">Ajouter le client</button>
+  <div class="grid2 mt"><button class="btn btn-o btn-sm" onclick="cliImport()">Importer Excel / CSV</button><button class="btn btn-o btn-sm" onclick="cliExport()">Exporter Excel</button></div></div>
+ <div class="card"><h2>Base clients <span id="cli-count" class="fine"></span></h2>
+  <input placeholder="Rechercher (nom, téléphone…)" value="${esc(CLIQ)}" oninput="CLIQ=this.value;renderCliList()" style="margin:.5rem 0 .8rem">
+  <div id="cli-list"></div></div>`;
+ renderCliList();
+};
+function renderCliList(){
+ const el=document.getElementById('cli-list');if(!el)return;
+ const q=CLIQ.trim().toLowerCase();
+ const list=S.clients.filter(c=>!q||(cliFull(c)+' '+(c.phone||'')).toLowerCase().indexOf(q)>=0).sort((a,b)=>cliFull(a).localeCompare(cliFull(b)));
+ document.getElementById('cli-count').textContent='('+list.length+')';
+ el.innerHTML=list.map(c=>{
+  const nb=S.invoices.filter(iv=>iv.clientId===c.id).length;
+  return `<div class="row"><div class="rmain"><div class="rt">${esc(cliFull(c))}</div><div class="rs">${esc(c.phone||'—')}${c.address?' · '+esc(c.address):''}${nb?' · '+nb+' facture(s)':''}</div></div><button class="btn btn-sm btn-o adm" onclick="cliEdit('${c.id}')">Modifier</button><button class="btn btn-sm btn-d adm" onclick="cliDel('${c.id}')">✕</button></div>`;
+ }).join('')||'<div class="empty">Aucun client. Ajoutez-en un ou importez votre fichier Excel.</div>';
+}
+function cliAdd(){
+ const name=document.getElementById('c-name').value.trim();
+ if(!name){toast('Nom / raison sociale requis');return;}
+ S.clients.push({id:uid(),name:name,firstname:document.getElementById('c-first').value.trim(),phone:document.getElementById('c-tel').value.trim(),address:document.getElementById('c-addr').value.trim()});
+ log('Client ajouté : '+name);
+ ['c-name','c-first','c-tel','c-addr'].forEach(i=>document.getElementById(i).value='');
+ save();renderCliList();toast('Client ajouté');
+}
+function cliEdit(id){
+ const c=S.clients.find(x=>x.id===id);if(!c)return;
+ openModal(`<h2>Modifier le client <button class="close" onclick="closeSheet('sheet-modal')">×</button></h2>
+ <div class="grid2"><div><label>Nom / Raison sociale</label><input id="ce-name" value="${esc(c.name)}"></div><div><label>Prénom</label><input id="ce-first" value="${esc(c.firstname||'')}"></div></div>
+ <div class="grid2"><div><label>Téléphone</label><input id="ce-tel" value="${esc(c.phone||'')}"></div><div><label>Adresse</label><input id="ce-addr" value="${esc(c.address||'')}"></div></div>
+ <button class="btn btn-p btn-full mt" onclick="cliSave('${c.id}')">Enregistrer</button>`);
+}
+function cliSave(id){
+ const c=S.clients.find(x=>x.id===id);if(!c)return;
+ const n=document.getElementById('ce-name').value.trim();if(!n){toast('Nom requis');return;}
+ c.name=n;c.firstname=document.getElementById('ce-first').value.trim();c.phone=document.getElementById('ce-tel').value.trim();c.address=document.getElementById('ce-addr').value.trim();
+ log('Client modifié : '+cliFull(c));save();closeSheet('sheet-modal');renderCliList();toast('Client modifié');
+}
+function cliDel(id){
+ const c=S.clients.find(x=>x.id===id);if(!c)return;
+ if(!confirm('Supprimer '+cliFull(c)+' de la base ? Les factures déjà émises sont conservées.'))return;
+ S.clients=S.clients.filter(x=>x.id!==id);log('Client supprimé : '+cliFull(c));save();renderCliList();
+}
+function cliExport(){
+ if(!window.XLSX){toast('Module Excel non chargé — connectez-vous une fois à Internet');return;}
+ const wb=XLSX.utils.book_new();
+ XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(S.clients.map(c=>({'Nom':c.name,'Prénom':c.firstname||'','Téléphone':c.phone||'','Adresse':c.address||''}))),'Clients');
+ XLSX.writeFile(wb,'clients-'+todayStr()+'.xlsx');
+ log('Export Excel des clients');save();
+}
+function cliImport(){
+ openModal(`<h2>Importer des clients <button class="close" onclick="closeSheet('sheet-modal')">×</button></h2>
+ <p class="fine">Fichier <b>.xlsx</b> ou <b>.csv</b> avec les colonnes : <b>Nom</b> (obligatoire) et, en option, <b>Prénom</b>, <b>Téléphone</b>, <b>Adresse</b>. Les doublons exacts (même nom et téléphone) sont ignorés.</p>
+ <input type="file" accept=".xlsx,.xls,.csv" onchange="cliHandleImport(this)">
+ <div id="cli-imp-res"></div>`);
+}
+function cliHandleImport(inp){
+ const f=inp.files[0];if(!f)return;
+ if(!window.XLSX){toast('Module Excel non chargé — connectez-vous une fois à Internet');return;}
+ const res=document.getElementById('cli-imp-res');
+ res.innerHTML='<div class="fine mt">Analyse du fichier…</div>';
+ const r=new FileReader();
+ r.onload=e=>{
+  try{
+   const wb=XLSX.read(e.target.result,{type:'array'});
+   const rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:''});
+   if(!rows.length){res.innerHTML='<div class="msg-err">Fichier vide ou illisible.</div>';return;}
+   if(rows.length>5000){res.innerHTML='<div class="msg-err">Maximum 5 000 lignes.</div>';return;}
+   const map={};
+   Object.keys(rows[0]).forEach(k=>{const n=stripAcc(k).toLowerCase().trim();
+    if(n==='nom'||n.indexOf('raison')===0||n==='name')map.name=k;
+    else if(n.indexOf('prenom')===0)map.first=k;
+    else if(n.indexOf('tel')===0||n==='phone')map.tel=k;
+    else if(n.indexOf('adres')===0||n==='address')map.addr=k;});
+   if(!map.name){res.innerHTML='<div class="msg-err">Structure invalide — colonne <b>Nom</b> (ou Raison sociale) introuvable.</div>';return;}
+   let ok=0,skip=0,vide=0;
+   rows.forEach(row=>{
+    const name=String(row[map.name]).trim();
+    if(!name){vide++;return;}
+    const phone=map.tel?String(row[map.tel]).trim():'';
+    if(S.clients.some(c=>c.name.toLowerCase()===name.toLowerCase()&&(c.phone||'')===phone)){skip++;return;}
+    S.clients.push({id:uid(),name:name,firstname:map.first?String(row[map.first]).trim():'',phone:phone,address:map.addr?String(row[map.addr]).trim():''});
+    ok++;
+   });
+   log('Import clients : '+ok+' ajouté(s), '+skip+' doublon(s) ignoré(s)');
+   save();renderCliList();
+   res.innerHTML='<div class="msg-ok" style="margin-top:.8rem">'+ok+' client(s) importé(s) · '+skip+' doublon(s) ignoré(s) · '+vide+' ligne(s) sans nom.</div>';
+  }catch(err2){res.innerHTML='<div class="msg-err">Impossible de lire ce fichier. Vérifiez qu’il s’agit bien d’un .xlsx ou .csv.</div>';}
+ };
+ r.readAsArrayBuffer(f);
+}
+function invCliMatch(){
+ const v=document.getElementById('iv-client').value.trim().toLowerCase();
+ const c=S.clients.find(x=>cliFull(x).toLowerCase()===v);
+ const h=document.getElementById('iv-cli-hint');if(!h)return;
+ if(c){if(c.phone)document.getElementById('iv-tel').value=c.phone;h.textContent='Client trouvé dans la base ✓';}
+ else h.textContent=v?'Nouveau client — il sera ajouté automatiquement à la base':'';
 }
 
 /* ===== Rapport mensuel PDF ===== */
@@ -1140,6 +1457,11 @@ function monthlyReport(){
    doc.setFillColor(231,226,216);doc.roundedRect(L,y+2.5,182,3.4,1.7,1.7,'F');
    if(pc>0){doc.setFillColor(242,179,61);doc.roundedRect(L,y+2.5,Math.max(4,182*pc),3.4,1.7,1.7,'F');}
    y+=13;
+  }
+  if(S.accounts.length>1){
+   doc.setFontSize(8);doc.setTextColor(94,107,100);doc.setFont('helvetica','normal');
+   const accLine=doc.splitTextToSize('Soldes par compte : '+S.accounts.map(a=>a.name+' '+pdfN(accBal(a.id))).join('  ·  ')+' '+S.company.symbol,182);
+   doc.text(accLine,L,y+2);y+=accLine.length*4+5;
   }
   function section(t){
    if(y>238){doc.addPage();y=22;}
