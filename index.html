@@ -234,6 +234,7 @@ const curMonth=()=>todayStr().slice(0,7);
 const NF=new Intl.NumberFormat('fr-FR',{maximumFractionDigits:0});
 const fmt=n=>NF.format(Math.round(n||0))+' '+S.company.symbol;
 const fmt2=(n,sym)=>NF.format(Math.round(n||0))+' '+sym;
+const pdfN=n=>NF.format(Math.round(n||0)).replace(/[\u202F\u00A0]/g,' ');
 function monthLabel(m){const p=m.split('-');return new Date(+p[0],+p[1]-1,1).toLocaleDateString('fr-FR',{month:'short',year:'2-digit'});}
 function dateLabel(d){return new Date(d+'T00:00:00').toLocaleDateString('fr-FR',{day:'numeric',month:'short',year:'numeric'});}
 function log(txt){S.journal.unshift({d:new Date().toISOString(),txt});if(S.journal.length>300)S.journal.length=300;}
@@ -838,13 +839,13 @@ function invPDF(id){
  doc.text('Client : '+iv.client+(iv.phone?'   Tél : '+iv.phone:''),14,44);
  doc.text('Date : '+dateLabel(iv.date),14,50);
  doc.autoTable({startY:58,head:[['Désignation','Qté','P.U. ('+S.company.symbol+')','Total']],
-  body:iv.lines.map(l=>[l.label,String(l.qty),NF.format(l.pu),NF.format(l.qty*l.pu)]),
+  body:iv.lines.map(l=>[l.label,String(l.qty),pdfN(l.pu),pdfN(l.qty*l.pu)]),
   headStyles:{fillColor:[14,90,69]},styles:{font:'helvetica',fontSize:10}});
  let y=doc.lastAutoTable.finalY+8;
- doc.text('Total HT : '+NF.format(t.ht)+' '+S.company.symbol,130,y);
- if(iv.tva>0){y+=6;doc.text('TVA ('+iv.tva+' %) : '+NF.format(t.tva)+' '+S.company.symbol,130,y);}
+ doc.text('Total HT : '+pdfN(t.ht)+' '+S.company.symbol,130,y);
+ if(iv.tva>0){y+=6;doc.text('TVA ('+iv.tva+' %) : '+pdfN(t.tva)+' '+S.company.symbol,130,y);}
  y+=7;doc.setFont('helvetica','bold');doc.setFontSize(12);
- doc.text('Total TTC : '+NF.format(t.ttc)+' '+S.company.symbol,130,y);
+ doc.text('Total TTC : '+pdfN(t.ttc)+' '+S.company.symbol,130,y);
  doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(130);
  doc.text('Facture générée avec Trezo',14,287);
  doc.save(iv.num+'.pdf');
@@ -885,7 +886,7 @@ R.set=function(){
   <label class="mt adm" style="display:block;margin-top:1rem"><span class="btn btn-o btn-full" style="display:flex">Importer une sauvegarde (migration)</span><input type="file" accept=".json,application/json" style="display:none" onchange="restore(this)"></label>
   <p class="fine mt">La sauvegarde cloud est automatique. L’archive JSON sert de copie personnelle et permet de migrer les données d’une installation Trezo Classique vers le cloud.</p>
   <button class="btn btn-d btn-full mt adm" onclick="resetAll()">Vider les données de l’entreprise</button></div>
- <p class="fine" style="text-align:center;margin:.4rem 0 1.2rem">Trezo Cloud v2.0</p>`;
+ <p class="fine" style="text-align:center;margin:.4rem 0 1.2rem">Trezo Cloud v2.1</p>`;
 };
 function setLogo(inp){const f=inp.files[0];if(!f)return;resizeImg(f,url=>{S.company.logo=url;document.getElementById('s-logo-prev').src=url;save();renderHeader();toast('Logo mis à jour');});}
 async function saveCompany(){
@@ -1095,37 +1096,49 @@ function invPrint(id){
 /* ===== Rapport mensuel PDF ===== */
 function monthlyReport(){
  if(!window.jspdf){toast('Module PDF non chargé — connectez-vous une fois à Internet');return;}
- const m=curMonth();
- const enc=txMonth(m,'in'),dec=txMonth(m,'out');
- const doc=new window.jspdf.jsPDF();
- if(S.company.logo){try{doc.addImage(S.company.logo,'PNG',14,12,20,20);}catch(e){}}
- doc.setFont('helvetica','bold');doc.setFontSize(16);doc.setTextColor(14,90,69);
- doc.text(S.company.name,S.company.logo?38:14,19);
- doc.setFontSize(11);doc.setTextColor(60);
- doc.text('Rapport mensuel — '+new Date().toLocaleDateString('fr-FR',{month:'long',year:'numeric'}),S.company.logo?38:14,26);
- doc.setFont('helvetica','normal');doc.setFontSize(10);doc.setTextColor(20);
- let y=44;
- doc.text('Encaissements du mois : '+NF.format(enc)+' '+S.company.symbol,14,y);y+=6;
- doc.text('Décaissements du mois : '+NF.format(dec)+' '+S.company.symbol,14,y);y+=6;
- doc.setFont('helvetica','bold');
- doc.text('Résultat du mois : '+NF.format(enc-dec)+' '+S.company.symbol,14,y);
- doc.setFont('helvetica','normal');y+=6;
- const g=S.goals.find(x=>x.month===m);
- if(g){doc.text('Objectif : '+NF.format(g.target)+' '+S.company.symbol+' — atteint à '+Math.round(enc/g.target*100)+' %',14,y);y+=6;}
- doc.text('Solde de trésorerie global : '+NF.format(solde())+' '+S.company.symbol,14,y);y+=2;
- const cats={};S.tx.filter(x=>x.type==='out'&&x.date.slice(0,7)===m).forEach(x=>cats[x.cat]=(cats[x.cat]||0)+x.amount);
- const cbody=Object.keys(cats).sort((a,b)=>cats[b]-cats[a]).map(k=>[k,NF.format(cats[k])]);
- if(cbody.length){doc.autoTable({startY:y+4,head:[['Décaissements par catégorie','Montant ('+S.company.symbol+')']],body:cbody,headStyles:{fillColor:[14,90,69]},styles:{font:'helvetica',fontSize:9}});y=doc.lastAutoTable.finalY;}
- const prod={};
- S.tx.filter(x=>x.type==='in'&&x.date.slice(0,7)===m&&x.productId).forEach(x=>{const p=S.products.find(q=>q.id===x.productId);if(p){prod[p.name]=prod[p.name]||{q:0,a:0};prod[p.name].q+=x.qty||1;prod[p.name].a+=x.amount;}});
- const pbody=Object.keys(prod).sort((a,b)=>prod[b].a-prod[a].a).slice(0,8).map(k=>[k,String(prod[k].q),NF.format(prod[k].a)]);
- if(pbody.length){doc.autoTable({startY:y+6,head:[['Produits les plus vendus','Qté','Montant']],body:pbody,headStyles:{fillColor:[242,179,61],textColor:[61,42,0]},styles:{font:'helvetica',fontSize:9}});y=doc.lastAutoTable.finalY;}
- const sbody=S.salPays.filter(p=>p.month===m).map(p=>{const e=S.employees.find(x=>x.id===p.empId);return[e?e.name:'(retiré)',NF.format(p.amount)];});
- if(sbody.length){doc.autoTable({startY:y+6,head:[['Salaires payés ce mois','Montant']],body:sbody,headStyles:{fillColor:[14,90,69]},styles:{font:'helvetica',fontSize:9}});}
- doc.setFontSize(8);doc.setTextColor(130);
- doc.text('Généré avec Trezo — '+new Date().toLocaleDateString('fr-FR'),14,287);
- doc.save('rapport-'+m+'.pdf');
- log('Rapport mensuel généré ('+m+')');save();
+ try{
+  const m=curMonth();
+  const enc=txMonth(m,'in'),dec=txMonth(m,'out');
+  const doc=new window.jspdf.jsPDF();
+  if(typeof doc.autoTable!=='function'){toast('Module tableaux PDF non chargé — rechargez la page une fois connecté');return;}
+  const mt=new Date().toLocaleDateString('fr-FR',{month:'long',year:'numeric'});
+  if(S.company.logo){try{doc.addImage(S.company.logo,'PNG',14,12,20,20);}catch(e){}}
+  doc.setFont('helvetica','bold');doc.setFontSize(16);doc.setTextColor(14,90,69);
+  doc.text(String(S.company.name).slice(0,60),S.company.logo?38:14,19);
+  doc.setFontSize(11);doc.setTextColor(60);
+  doc.text('Rapport mensuel — '+mt.charAt(0).toUpperCase()+mt.slice(1),S.company.logo?38:14,26);
+  doc.setFont('helvetica','normal');doc.setFontSize(10);doc.setTextColor(20);
+  let y=44;
+  doc.text('Encaissements du mois : '+pdfN(enc)+' '+S.company.symbol,14,y);y+=6;
+  doc.text('Décaissements du mois : '+pdfN(dec)+' '+S.company.symbol,14,y);y+=6;
+  doc.setFont('helvetica','bold');
+  doc.text('Résultat du mois : '+pdfN(enc-dec)+' '+S.company.symbol,14,y);
+  doc.setFont('helvetica','normal');y+=6;
+  const g=S.goals.find(x=>x.month===m);
+  if(g&&g.target>0){doc.text('Objectif : '+pdfN(g.target)+' '+S.company.symbol+' — atteint à '+Math.round(enc/g.target*100)+' %',14,y);y+=6;}
+  doc.text('Solde de trésorerie global : '+pdfN(solde())+' '+S.company.symbol,14,y);
+  function table(opts){
+   if(y>232){doc.addPage();y=18;}
+   doc.autoTable(Object.assign({startY:y+6,styles:{font:'helvetica',fontSize:9},margin:{bottom:18}},opts));
+   y=doc.lastAutoTable?doc.lastAutoTable.finalY:y+30;
+  }
+  const cats={};S.tx.filter(x=>x.type==='out'&&x.date.slice(0,7)===m).forEach(x=>cats[x.cat]=(cats[x.cat]||0)+x.amount);
+  const cbody=Object.keys(cats).sort((a,b)=>cats[b]-cats[a]).map(k=>[k,pdfN(cats[k])]);
+  if(cbody.length)table({head:[['Décaissements par catégorie','Montant ('+S.company.symbol+')']],body:cbody,headStyles:{fillColor:[14,90,69]}});
+  const prod={};
+  S.tx.filter(x=>x.type==='in'&&x.date.slice(0,7)===m&&x.productId).forEach(x=>{const p=S.products.find(q=>q.id===x.productId);if(p){prod[p.name]=prod[p.name]||{q:0,a:0};prod[p.name].q+=x.qty||1;prod[p.name].a+=x.amount;}});
+  const pbody=Object.keys(prod).sort((a,b)=>prod[b].a-prod[a].a).slice(0,8).map(k=>[k,String(prod[k].q),pdfN(prod[k].a)]);
+  if(pbody.length)table({head:[['Produits les plus vendus','Qté','Montant']],body:pbody,headStyles:{fillColor:[242,179,61],textColor:[61,42,0]}});
+  const sbody=S.salPays.filter(p=>p.month===m).map(p=>{const e=S.employees.find(x=>x.id===p.empId);return[e?e.name:'(retiré)',pdfN(p.amount)];});
+  if(sbody.length)table({head:[['Salaires payés ce mois','Montant']],body:sbody,headStyles:{fillColor:[14,90,69]}});
+  doc.setFontSize(8);doc.setTextColor(130);
+  doc.text('Généré avec Trezo — '+new Date().toLocaleDateString('fr-FR'),14,287);
+  doc.save('rapport-'+m+'.pdf');
+  log('Rapport mensuel généré ('+m+')');save();
+ }catch(err){
+  console.error('Rapport:',err);
+  toast('Erreur rapport : '+((err&&err.message)?err.message:err));
+ }
 }
 </script>
 </body>
