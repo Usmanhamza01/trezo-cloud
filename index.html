@@ -240,6 +240,12 @@ function log(txt){S.journal.unshift({d:new Date().toISOString(),txt});if(S.journ
 function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove('show'),2600);}
 async function sha(s){const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(s));return[...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('').toUpperCase();}
 function setSync(t){const e=document.getElementById('h-sync');if(e)e.textContent=t;}
+let INSTALL_EVT=null;
+window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();INSTALL_EVT=e;});
+async function promptInstall(){
+ if(INSTALL_EVT){INSTALL_EVT.prompt();try{await INSTALL_EVT.userChoice;}catch(e){}INSTALL_EVT=null;return;}
+ toast('Menu du navigateur → « Installer l’application » ou « Ajouter à l’écran d’accueil »');
+}
 
 /* ===== Persistance cloud (document par entreprise, verrou optimiste) ===== */
 function save(){
@@ -515,6 +521,7 @@ R.dash=function(){
   <div class="kpi"><div class="lbl">Objectif du mois</div><div class="val">${goal?Math.round(enc/goal.target*100)+' %':'—'}</div>${goal?`<div class="pbar"><i class="${enc>=goal.target?'done':''}" style="width:${Math.min(100,enc/goal.target*100)}%"></i></div>`:'<div class="fine">Définir dans Objectifs</div>'}</div>
  </div>
  ${low.length?`<div class="card" style="border-color:var(--rouge)"><h3 style="color:var(--rouge)">⚠ Stock bas</h3>${low.map(p=>`<div class="row"><div class="rmain"><div class="rt">${esc(p.name)}</div></div><span class="chip chip-r">${p.qty} restant(s)</span></div>`).join('')}</div>`:''}
+ <div class="grid2" style="margin-bottom:1rem"><button class="btn btn-o" onclick="monthlyReport()">Rapport du mois (PDF)</button><button class="btn btn-o" onclick="exportExcel()">Export Excel</button></div>
  <div class="charts">
   <div class="card"><h3>Flux des 6 derniers mois</h3><canvas id="ch-line" height="230"></canvas></div>
   <div class="card"><h3>Décaissements du mois</h3><canvas id="ch-pie" height="230"></canvas><div id="pie-empty"></div></div>
@@ -537,10 +544,9 @@ function drawCharts(m){
 }
 
 /* ===== Flux ===== */
-let FLUX='in';
+let FLUX='in',FLUX_Q='',FLUX_M='';
 R.flux=function(){
  const cats=FLUX==='in'?CAT_IN:CAT_OUT;
- const list=S.tx.filter(x=>x.type===FLUX).sort((a,b)=>b.date.localeCompare(a.date)||b.id.localeCompare(a.id));
  document.getElementById('v-flux').innerHTML=`
  <div class="tabs"><button class="${FLUX==='in'?'on':''}" onclick="FLUX='in';R.flux()">Encaissements</button><button class="t-out ${FLUX==='out'?'on':''}" onclick="FLUX='out';R.flux()">Décaissements</button></div>
  <div class="grid2 adm" style="margin-bottom:1rem"><button class="btn btn-o" onclick="importTpl()">Importer un template</button><button class="btn btn-o" onclick="downloadTpl()">Modèle .xlsx</button></div>
@@ -552,8 +558,24 @@ R.flux=function(){
   <label>Description (optionnel)</label><input id="f-desc" placeholder="${FLUX==='in'?'Ex. : Vente comptoir':'Ex. : Facture électricité juin'}">
   <button class="btn ${FLUX==='in'?'btn-p':'btn-d'} btn-full mt" onclick="addTx()">Enregistrer</button>
  </div>
- <div class="card"><h3>Historique (${list.length})</h3>${list.length?list.slice(0,150).map(x=>txRow(x,true)).join(''):'<div class="empty">Aucune opération pour le moment.</div>'}</div>`;
+ <div class="card"><h3>Historique <span id="flux-count" style="font-weight:600;color:var(--gris);font-size:.85rem"></span></h3>
+  <div class="grid2" style="margin:.6rem 0 .8rem"><input placeholder="Rechercher…" value="${esc(FLUX_Q)}" oninput="FLUX_Q=this.value;renderFluxList()"><input type="month" value="${FLUX_M}" onchange="FLUX_M=this.value;renderFluxList()"></div>
+  <div id="flux-list"></div></div>`;
+ renderFluxList();
 };
+function renderFluxList(){
+ const el=document.getElementById('flux-list');if(!el)return;
+ const q=FLUX_Q.trim().toLowerCase();
+ let list=S.tx.filter(x=>x.type===FLUX);
+ if(FLUX_M)list=list.filter(x=>x.date.slice(0,7)===FLUX_M);
+ if(q)list=list.filter(x=>((x.desc||'')+' '+x.cat+' '+String(x.amount)).toLowerCase().indexOf(q)>=0);
+ list.sort((a,b)=>b.date.localeCompare(a.date)||b.id.localeCompare(a.id));
+ const tot=list.reduce((a,x)=>a+x.amount,0);
+ document.getElementById('flux-count').textContent='('+list.length+' op. · '+fmt(tot)+')';
+ el.innerHTML=list.length
+  ?list.slice(0,200).map(x=>txRow(x,true)).join('')+(list.length>200?'<div class="empty">… '+(list.length-200)+' opérations plus anciennes — affinez la recherche.</div>':'')
+  :'<div class="empty">'+((q||FLUX_M)?'Aucune opération ne correspond à ces filtres.':'Aucune opération pour le moment.')+'</div>';
+}
 function fluxProd(){
  const sel=document.getElementById('f-prod');if(!sel)return;
  const w=document.getElementById('f-qty-wrap');
@@ -854,12 +876,16 @@ R.set=function(){
  <div class="card"><h2>Sécurité &amp; accès client</h2>
   <p class="fine">Le mode lecture seule (bouton 🔒 en haut) permet de confier l’appareil à un employé ou de montrer les chiffres à un client sans risque de modification. Le code PIN protège le déverrouillage.</p>
   <button class="btn btn-o btn-full mt adm" onclick="setPin()">${S.settings.pin?'Changer le code PIN':'Définir un code PIN'}</button></div>
+ <div class="card"><h2>Application</h2>
+  <p class="fine">Installez Trezo sur cet appareil pour l’ouvrir comme un logiciel, directement depuis l’écran d’accueil ou le bureau.</p>
+  <button class="btn btn-o btn-full mt" onclick="promptInstall()">Installer sur cet appareil</button></div>
  <div class="card"><h2>Données</h2>
   <button class="btn btn-p btn-full" onclick="exportExcel()">Exporter en Excel (.xlsx)</button>
   <button class="btn btn-o btn-full mt" onclick="backup()">Télécharger une archive (.json)</button>
   <label class="mt adm" style="display:block;margin-top:1rem"><span class="btn btn-o btn-full" style="display:flex">Importer une sauvegarde (migration)</span><input type="file" accept=".json,application/json" style="display:none" onchange="restore(this)"></label>
   <p class="fine mt">La sauvegarde cloud est automatique. L’archive JSON sert de copie personnelle et permet de migrer les données d’une installation Trezo Classique vers le cloud.</p>
-  <button class="btn btn-d btn-full mt adm" onclick="resetAll()">Vider les données de l’entreprise</button></div>`;
+  <button class="btn btn-d btn-full mt adm" onclick="resetAll()">Vider les données de l’entreprise</button></div>
+ <p class="fine" style="text-align:center;margin:.4rem 0 1.2rem">Trezo Cloud v2.0</p>`;
 };
 function setLogo(inp){const f=inp.files[0];if(!f)return;resizeImg(f,url=>{S.company.logo=url;document.getElementById('s-logo-prev').src=url;save();renderHeader();toast('Logo mis à jour');});}
 async function saveCompany(){
@@ -1064,6 +1090,42 @@ function invPrint(id){
  document.getElementById('print-area').innerHTML=invDocHTML(iv);
  log('Impression : '+iv.num);save();
  setTimeout(()=>window.print(),50);
+}
+
+/* ===== Rapport mensuel PDF ===== */
+function monthlyReport(){
+ if(!window.jspdf){toast('Module PDF non chargé — connectez-vous une fois à Internet');return;}
+ const m=curMonth();
+ const enc=txMonth(m,'in'),dec=txMonth(m,'out');
+ const doc=new window.jspdf.jsPDF();
+ if(S.company.logo){try{doc.addImage(S.company.logo,'PNG',14,12,20,20);}catch(e){}}
+ doc.setFont('helvetica','bold');doc.setFontSize(16);doc.setTextColor(14,90,69);
+ doc.text(S.company.name,S.company.logo?38:14,19);
+ doc.setFontSize(11);doc.setTextColor(60);
+ doc.text('Rapport mensuel — '+new Date().toLocaleDateString('fr-FR',{month:'long',year:'numeric'}),S.company.logo?38:14,26);
+ doc.setFont('helvetica','normal');doc.setFontSize(10);doc.setTextColor(20);
+ let y=44;
+ doc.text('Encaissements du mois : '+NF.format(enc)+' '+S.company.symbol,14,y);y+=6;
+ doc.text('Décaissements du mois : '+NF.format(dec)+' '+S.company.symbol,14,y);y+=6;
+ doc.setFont('helvetica','bold');
+ doc.text('Résultat du mois : '+NF.format(enc-dec)+' '+S.company.symbol,14,y);
+ doc.setFont('helvetica','normal');y+=6;
+ const g=S.goals.find(x=>x.month===m);
+ if(g){doc.text('Objectif : '+NF.format(g.target)+' '+S.company.symbol+' — atteint à '+Math.round(enc/g.target*100)+' %',14,y);y+=6;}
+ doc.text('Solde de trésorerie global : '+NF.format(solde())+' '+S.company.symbol,14,y);y+=2;
+ const cats={};S.tx.filter(x=>x.type==='out'&&x.date.slice(0,7)===m).forEach(x=>cats[x.cat]=(cats[x.cat]||0)+x.amount);
+ const cbody=Object.keys(cats).sort((a,b)=>cats[b]-cats[a]).map(k=>[k,NF.format(cats[k])]);
+ if(cbody.length){doc.autoTable({startY:y+4,head:[['Décaissements par catégorie','Montant ('+S.company.symbol+')']],body:cbody,headStyles:{fillColor:[14,90,69]},styles:{font:'helvetica',fontSize:9}});y=doc.lastAutoTable.finalY;}
+ const prod={};
+ S.tx.filter(x=>x.type==='in'&&x.date.slice(0,7)===m&&x.productId).forEach(x=>{const p=S.products.find(q=>q.id===x.productId);if(p){prod[p.name]=prod[p.name]||{q:0,a:0};prod[p.name].q+=x.qty||1;prod[p.name].a+=x.amount;}});
+ const pbody=Object.keys(prod).sort((a,b)=>prod[b].a-prod[a].a).slice(0,8).map(k=>[k,String(prod[k].q),NF.format(prod[k].a)]);
+ if(pbody.length){doc.autoTable({startY:y+6,head:[['Produits les plus vendus','Qté','Montant']],body:pbody,headStyles:{fillColor:[242,179,61],textColor:[61,42,0]},styles:{font:'helvetica',fontSize:9}});y=doc.lastAutoTable.finalY;}
+ const sbody=S.salPays.filter(p=>p.month===m).map(p=>{const e=S.employees.find(x=>x.id===p.empId);return[e?e.name:'(retiré)',NF.format(p.amount)];});
+ if(sbody.length){doc.autoTable({startY:y+6,head:[['Salaires payés ce mois','Montant']],body:sbody,headStyles:{fillColor:[14,90,69]},styles:{font:'helvetica',fontSize:9}});}
+ doc.setFontSize(8);doc.setTextColor(130);
+ doc.text('Généré avec Trezo — '+new Date().toLocaleDateString('fr-FR'),14,287);
+ doc.save('rapport-'+m+'.pdf');
+ log('Rapport mensuel généré ('+m+')');save();
 }
 </script>
 </body>
