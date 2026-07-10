@@ -55,3 +55,6 @@ Ce portage a été vérifié par analyse statique mais pas exécuté contre un v
 
 ## v2.5 — Multi-utilisateurs
 Exécutez migration-multi-utilisateurs.sql (une fois) dans Supabase pour activer la gestion des collaborateurs et des droits. L'administrateur invite via Réglages → Gestion des utilisateurs ; le collaborateur crée son compte puis entre le code d'invitation.
+
+## v2.8 — Comptes collaborateurs créés par l'admin
+Exécutez migration-comptes-collaborateurs.sql (une fois) dans Supabase. L'admin crée directement les comptes (nom, e-mail, mot de passe initial, rôle) dans Réglages → Gestion des utilisateurs ; l'invitation par code reste disponible. Prérequis : « Confirm email » désactivé dans Supabase → Authentication → Providers → Email.

@@ -1,5 +1,5 @@
 /* Trezo Cloud — service worker : cache de l'interface, JAMAIS des données Supabase */
-const CACHE = 'trezo-cloud-v8';
+const CACHE = 'trezo-cloud-v10';
 const ASSETS = [
   './', './index.html', './config.js', './manifest.webmanifest', './icon-192.png', './icon-512.png',
   'https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;800&display=swap',

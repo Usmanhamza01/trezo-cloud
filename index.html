@@ -937,7 +937,13 @@ function saveProd(id){
 
 /* ===== Factures ===== */
 let INV_LINES=[],INV_FROM_TX=null,INV_DATE=null,FFILT='all',FQ='',FMM='',FSORT='num',FDIR=-1;
-function invTotals(iv){const ht=iv.lines.reduce((a,l)=>a+l.qty*l.pu,0),tva=ht*(iv.tva||0)/100;return{ht,tva,ttc:ht+tva};}
+function invTotals(iv){
+ const htBrut=iv.lines.reduce((a,l)=>a+l.qty*l.pu,0);
+ let remise=0;
+ if(iv.disc&&iv.disc.v>0)remise=iv.disc.t==='pct'?htBrut*Math.min(100,iv.disc.v)/100:Math.min(iv.disc.v,htBrut);
+ const ht=htBrut-remise,tva=ht*(iv.tva||0)/100;
+ return{htBrut,remise,ht,tva,ttc:ht+tva};
+}
 function invPaid(iv){if(Array.isArray(iv.pays))return iv.pays.reduce((a,p)=>a+p.amount,0);return iv.paid?invTotals(iv).ttc:0;}
 function invStatus(iv){if(iv.proforma)return'pro';if(iv.cancelled)return'cancel';const t=invTotals(iv).ttc,r=invPaid(iv);if(r>=t-0.5)return'paid';if(r>0)return'part';return'unpaid';}
 R.fact=function(){
@@ -994,7 +1000,7 @@ function renderFactTable(){
 }
 function exportFactXls(){
  if(!window.XLSX){toast('Module Excel non chargé — connectez-vous une fois à Internet');return;}
- const rows=factList().map(iv=>{const t=invTotals(iv),reg=invPaid(iv);return{'N°':iv.num,'Date':iv.date,'Client':iv.client,'Téléphone':iv.phone||'','Total TTC':t.ttc,'Réglé':reg,'Reste dû':Math.max(0,t.ttc-reg),'Statut':invStatus(iv)==='pro'?'Pro forma':invStatus(iv)==='cancel'?'Annulée':invStatus(iv)==='paid'?'Payée':invStatus(iv)==='part'?'Partielle':'Impayée'};});
+ const rows=factList().map(iv=>{const t=invTotals(iv),reg=invPaid(iv);return{'N°':iv.num,'Date':iv.date,'Client':iv.client,'Téléphone':iv.phone||'','Remise':t.remise||0,'Total TTC':t.ttc,'Réglé':reg,'Reste dû':Math.max(0,t.ttc-reg),'Statut':invStatus(iv)==='pro'?'Pro forma':invStatus(iv)==='cancel'?'Annulée':invStatus(iv)==='paid'?'Payée':invStatus(iv)==='part'?'Partielle':'Impayée'};});
  const wb=XLSX.utils.book_new();
  XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(rows),'Suivi factures');
  XLSX.writeFile(wb,'suivi-factures-'+todayStr()+'.xlsx');
@@ -1025,9 +1031,11 @@ function invModal(title,hint){
  openModal(`<h2>${title} <button class="close" onclick="closeSheet('sheet-modal')">×</button></h2>
  ${hint?'<p class="fine">'+hint+'</p>':''}
  <label>Client</label><input id="iv-client" list="dl-cli" placeholder="Nom du client — la base propose vos clients" oninput="invCliMatch()"><datalist id="dl-cli">${S.clients.map(c=>`<option value="${esc(cliFull(c))}">`).join('')}</datalist><div id="iv-cli-hint" class="fine"></div>
+ <label>Adresse du client (optionnel — enregistrée dans sa fiche)</label><input id="iv-addr">
  <div class="grid2"><div><label>Téléphone (optionnel)</label><input id="iv-tel"></div><div><label>Date</label><input id="iv-date" type="date" value="${INV_DATE||todayStr()}"></div></div>
  <label>Lignes</label><div id="iv-lines"></div>
  <button class="btn btn-a btn-sm" onclick="invAddLine()">+ Ajouter une ligne</button>
+ <div class="grid2"><div><label>Réduction commerciale</label><select id="iv-dt" onchange="invTotalPrev()"><option value="none">Aucune</option><option value="amt">Montant fixe (${S.company.symbol})</option><option value="pct">Pourcentage (%)</option></select></div><div><label>Valeur de la réduction</label><input id="iv-dv" type="number" min="0" value="0" oninput="invTotalPrev()"></div></div>
  <label>TVA (%) — laissez 0 si non applicable</label><input id="iv-tva" type="number" min="0" value="0" oninput="invTotalPrev()">
  <div id="iv-total" class="mt" style="font-weight:800"></div>
  ${INV_FROM_TX?`<button class="btn btn-p btn-full mt" onclick="saveInvoice('def')">Générer la facture</button>`:`<div class="grid2 mt"><button class="btn btn-o" onclick="saveInvoice('pro')">Facture Pro forma</button><button class="btn btn-p" onclick="saveInvoice('def')">Facture Définitive</button></div>`}`);
@@ -1065,18 +1073,26 @@ function invLineProd(i,pid){
  renderInvLines();
 }
 function invTotalPrev(){
- const ht=INV_LINES.reduce((a,l)=>a+(l.qty||0)*(l.pu||0),0);
+ const htB=INV_LINES.reduce((a,l)=>a+(l.qty||0)*(l.pu||0),0);
+ const dt=(document.getElementById('iv-dt')||{}).value||'none';
+ const dv=+((document.getElementById('iv-dv')||{}).value)||0;
+ let rem=0;
+ if(dt==='pct'&&dv>0)rem=htB*Math.min(100,dv)/100;
+ else if(dt==='amt'&&dv>0)rem=Math.min(dv,htB);
+ const ht=htB-rem;
  const tvaEl=document.getElementById('iv-tva');
  const tva=ht*((tvaEl?+tvaEl.value:0)||0)/100;
- const el=document.getElementById('iv-total');if(el)el.textContent='Total TTC : '+fmt(ht+tva);
+ const el=document.getElementById('iv-total');
+ if(el)el.innerHTML=(rem>0?'Sous-total HT : '+fmt(htB)+' · Réduction : -'+fmt(rem)+(dt==='pct'?' ('+dv+' %)':'')+'<br>':'')+'Total TTC : '+fmt(ht+tva);
 }
 function saveInvoice(kind){
  const client=document.getElementById('iv-client').value.trim();
  if(!client){toast('Nom du client requis');return;}
  let cli=S.clients.find(x=>cliFull(x).toLowerCase()===client.toLowerCase());
  const telv=document.getElementById('iv-tel').value.trim();
- if(!cli){cli={id:uid(),name:client,firstname:'',phone:telv,address:''};S.clients.push(cli);log('Client ajouté depuis la facturation : '+client);}
- else if(telv&&!cli.phone){cli.phone=telv;}
+ const addrv=((document.getElementById('iv-addr')||{}).value||'').trim();
+ if(!cli){cli={id:uid(),name:client,firstname:'',phone:telv,address:addrv};S.clients.push(cli);log('Client créé automatiquement depuis la facturation : '+client);toast('Nouveau client « '+client+' » ajouté à la base');}
+ else{if(telv&&!cli.phone)cli.phone=telv;if(addrv&&!cli.address)cli.address=addrv;}
  const lines=INV_LINES.filter(l=>l.label.trim()&&l.qty>0).map(l=>({label:l.label.trim(),qty:l.qty,pu:l.pu,productId:l.productId||null}));
  if(!lines.length){toast('Ajoutez au moins une ligne');return;}
  const fromTx=INV_FROM_TX?S.tx.find(x=>x.id===INV_FROM_TX):null;
@@ -1086,7 +1102,7 @@ function saveInvoice(kind){
  let num;
  if(proforma){S.settings.proSeq=(S.settings.proSeq||0)+1;num=pfx+'-PF-'+new Date().getFullYear()+'-'+String(S.settings.proSeq).padStart(4,'0');}
  else{S.settings.invSeq++;num=pfx+'-'+new Date().getFullYear()+'-'+String(S.settings.invSeq).padStart(4,'0');}
- const iv={id:uid(),num,client,clientId:cli.id,phone:document.getElementById('iv-tel').value.trim(),date:document.getElementById('iv-date').value||todayStr(),lines,tva:+document.getElementById('iv-tva').value||0,paid:!!fromTx,proforma:proforma};
+ const iv={id:uid(),num,client,clientId:cli.id,phone:document.getElementById('iv-tel').value.trim(),date:document.getElementById('iv-date').value||todayStr(),lines,tva:+document.getElementById('iv-tva').value||0,disc:(function(){const dt=(document.getElementById('iv-dt')||{}).value||'none';const dv=+((document.getElementById('iv-dv')||{}).value)||0;return(dt!=='none'&&dv>0)?{t:dt,v:dv}:null;})(),paid:!!fromTx,proforma:proforma};
  if(fromTx)iv.pays=[{d:iv.date,amount:invTotals(iv).ttc}];
  if(!fromTx&&!proforma)lines.forEach(l=>{if(l.productId){const p=S.products.find(x=>x.id===l.productId);if(p)p.qty=Math.max(0,p.qty-l.qty);}});
  S.invoices.push(iv);
@@ -1175,6 +1191,10 @@ function invPDF(id){
   body:iv.lines.map(l=>[l.label,String(l.qty),pdfN(l.pu),pdfN(l.qty*l.pu)]),
   headStyles:{fillColor:[14,90,69]},styles:{font:'helvetica',fontSize:10}});
  let y=doc.lastAutoTable.finalY+8;
+ if(t.remise>0){
+  doc.text('Sous-total HT : '+pdfN(t.htBrut)+' '+S.company.symbol,130,y);y+=6;
+  doc.text('Réduction'+(iv.disc&&iv.disc.t==='pct'?' ('+iv.disc.v+' %)':'')+' : -'+pdfN(t.remise)+' '+S.company.symbol,130,y);y+=6;
+ }
  doc.text('Total HT : '+pdfN(t.ht)+' '+S.company.symbol,130,y);
  if(iv.tva>0){y+=6;doc.text('TVA ('+iv.tva+' %) : '+pdfN(t.tva)+' '+S.company.symbol,130,y);}
  y+=7;doc.setFont('helvetica','bold');doc.setFontSize(12);
@@ -1221,7 +1241,7 @@ R.set=function(){
  ${MYROLE==='owner'?`<div class="card"><h2>Gestion des utilisateurs</h2>
   <p class="fine">Invitez vos collaborateurs et définissez leurs droits module par module : <b>Aucun accès</b>, <b>Lecture seule</b>, <b>Écriture</b> (créer &amp; modifier, sans supprimer) ou <b>Total</b>.</p>
   <div id="mem-list" class="fine">Chargement…</div>
-  <button class="btn btn-p btn-full mt adm" onclick="invitOpen()">+ Inviter un collaborateur</button></div>`:''}
+  <div class="grid2 mt adm"><button class="btn btn-p" onclick="newUserOpen()">+ Créer un compte</button><button class="btn btn-o" onclick="invitOpen()">Inviter par code</button></div></div>`:''}
  <div class="card"><h2>Compte</h2>
   <p class="fine">Connecté : <b>${esc(email)}</b>. Vos données sont synchronisées dans le cloud et accessibles depuis n’importe quel appareil avec cet identifiant.</p>
   <div class="grid2 mt"><button class="btn btn-o adm" onclick="cloudChangePass()">Changer le mot de passe</button><button class="btn btn-o" onclick="cloudSignOut()">Se déconnecter</button></div></div>
@@ -1241,7 +1261,7 @@ R.set=function(){
   <label class="mt adm" style="display:block;margin-top:1rem"><span class="btn btn-o btn-full" style="display:flex">Importer une sauvegarde (migration)</span><input type="file" accept=".json,application/json" style="display:none" onchange="restore(this)"></label>
   <p class="fine mt">La sauvegarde cloud est automatique. L’archive JSON sert de copie personnelle et permet de migrer les données d’une installation Trezo Classique vers le cloud.</p>
   <button class="btn btn-d btn-full mt adm act-del" onclick="resetAll()">Vider les données de l’entreprise</button></div>
- <p class="fine" style="text-align:center;margin:.4rem 0 1.2rem">Trezo Cloud v2.6</p>`;
+ <p class="fine" style="text-align:center;margin:.4rem 0 1.2rem">Trezo Cloud v2.8 — édition multi-utilisateurs</p>`;
  if(MYROLE==='owner')loadMembers();
 };
 function setLogo(inp){const f=inp.files[0];if(!f)return;resizeImg(f,url=>{S.company.logo=url;document.getElementById('s-logo-prev').src=url;save();renderHeader();toast('Logo mis à jour');});}
@@ -1281,7 +1301,7 @@ async function loadMembers(){
  const r=await SB.rpc('list_members',{p_company:COMPANY.id});
  if(r.error){el.innerHTML='Fonctions multi-utilisateurs non installées : exécutez <b>migration-multi-utilisateurs.sql</b> dans Supabase (SQL Editor), puis actualisez.';return;}
  window._MEMBERS=r.data||[];
- el.innerHTML=window._MEMBERS.map(m=>`<div class="row"><div class="rmain"><div class="rt">${esc(m.email||m.user_id)}</div><div class="rs">${m.role==='owner'?'Administrateur — accès total':'Collaborateur'}</div></div>${m.role==='owner'?'':`<button class="btn btn-sm btn-o adm act-edit" onclick="memEdit('${m.user_id}')">Droits</button><button class="btn btn-sm btn-d adm act-del" onclick="memDel('${m.user_id}')">✕</button>`}</div>`).join('');
+ el.innerHTML=window._MEMBERS.map(m=>`<div class="row"><div class="rmain"><div class="rt">${esc(m.display_name||m.email||m.user_id)}</div><div class="rs">${m.display_name?esc(m.email)+' · ':''}${m.role==='owner'?'Administrateur — accès total':(m.perms&&m.perms.role?roleLbl(m.perms.role):'Collaborateur')}</div></div>${m.role==='owner'?'':`<button class="btn btn-sm btn-o adm act-edit" onclick="memEdit('${m.user_id}')">Droits</button><button class="btn btn-sm btn-d adm act-del" onclick="memDel('${m.user_id}')">✕</button>`}</div>`).join('');
 }
 function invitOpen(){
  openModal(`<h2>Inviter un collaborateur <button class="close" onclick="closeSheet('sheet-modal')">×</button></h2>
@@ -1314,6 +1334,50 @@ async function memDel(uid2){
  const r=await SB.rpc('remove_member',{p_company:COMPANY.id,p_user:uid2});
  if(r.error){toast(authErr(r.error));return;}
  log('Collaborateur retiré : '+(m?m.email:uid2));save();loadMembers();
+}
+const ROLE_PRESETS=[
+ ['assist','Assistant (écriture, sans suppression)',{dash:'r',flux:'w',cli:'w',sal:'n',obj:'r',stock:'w',fact:'w',jour:'n',set:'n'}],
+ ['compta','Comptable (accès étendu)',{dash:'t',flux:'t',cli:'t',sal:'t',obj:'t',stock:'t',fact:'t',jour:'r',set:'r'}],
+ ['lecture','Lecture seule',{dash:'r',flux:'r',cli:'r',sal:'r',obj:'r',stock:'r',fact:'r',jour:'r',set:'n'}],
+ ['perso','Personnalisé',null]];
+function roleLbl(code){const p=ROLE_PRESETS.find(x=>x[0]===code);return p?p[1].split(' (')[0]:'Collaborateur';}
+function applyPreset(sel){const p=ROLE_PRESETS.find(x=>x[0]===sel.value);if(!p||!p[2])return;document.querySelectorAll('.pm-sel').forEach(s=>{s.value=p[2][s.dataset.m]||'r';});}
+function newUserOpen(){
+ openModal(`<h2>Créer un compte collaborateur <button class="close" onclick="closeSheet('sheet-modal')">×</button></h2>
+ <p class="fine">Vous créez le compte et transmettez les identifiants : le collaborateur peut se connecter immédiatement, sans code d’invitation.</p>
+ <div class="grid2"><div><label>Nom et prénom</label><input id="nu-name"></div><div><label>Adresse e-mail (identifiant)</label><input id="nu-email" type="email" autocomplete="off"></div></div>
+ <label>Mot de passe initial (8 caractères min.)</label><input id="nu-pass" type="text" autocomplete="off">
+ <label>Rôle</label><select id="nu-role" onchange="applyPreset(this)">${ROLE_PRESETS.map(r=>`<option value="${r[0]}">${r[1]}</option>`).join('')}</select>
+ ${permsForm(null)}
+ <div id="nu-msg"></div>
+ <button class="btn btn-p btn-full mt" onclick="newUserDo()">Créer le compte</button>`);
+ applyPreset(document.getElementById('nu-role'));
+}
+async function newUserDo(){
+ const name=document.getElementById('nu-name').value.trim();
+ const email=document.getElementById('nu-email').value.trim().toLowerCase();
+ const pass=document.getElementById('nu-pass').value;
+ const msg=document.getElementById('nu-msg');
+ if(!email||email.indexOf('@')<1){msg.innerHTML='<div class="msg-err">Adresse e-mail invalide.</div>';return;}
+ if(pass.length<8){msg.innerHTML='<div class="msg-err">Mot de passe : 8 caractères minimum.</div>';return;}
+ msg.innerHTML='<div class="fine">Création du compte…</div>';
+ try{
+  const SB2=window.supabase.createClient(CONFIG.url,CONFIG.anonKey,{auth:{persistSession:false,autoRefreshToken:false}});
+  const su=await SB2.auth.signUp({email:email,password:pass,options:{data:{full_name:name}}});
+  if(su.error&&String(su.error.message||'').toLowerCase().indexOf('already')<0){msg.innerHTML='<div class="msg-err">'+esc(su.error.message)+'</div>';return;}
+  const perms=readPermsForm();perms.role=document.getElementById('nu-role').value;
+  const r=await SB.rpc('admin_add_member',{p_company:COMPANY.id,p_email:email,p_name:name,p_perms:perms});
+  if(r.error){
+   const m=String(r.error.message||'');
+   if(m.indexOf('user_not_found')>=0)msg.innerHTML='<div class="msg-err">Compte introuvable après création — la confirmation par e-mail est probablement activée dans Supabase (Authentication → Providers → Email → décochez « Confirm email »), ou exécutez migration-comptes-collaborateurs.sql. En attendant, utilisez l’invitation par code.</div>';
+   else if(m.indexOf('admin_add_member')>=0&&m.indexOf('does not exist')>=0)msg.innerHTML='<div class="msg-err">Exécutez d’abord <b>migration-comptes-collaborateurs.sql</b> dans Supabase (SQL Editor).</div>';
+   else msg.innerHTML='<div class="msg-err">'+esc(authErr(r.error))+'</div>';
+   return;
+  }
+  log('Compte collaborateur créé : '+(name||email));save();
+  msg.innerHTML='<div class="msg-ok">Compte créé ✓ Transmettez au collaborateur : identifiant <b>'+esc(email)+'</b> + le mot de passe initial. Connexion possible immédiatement.</div>';
+  loadMembers();
+ }catch(e){msg.innerHTML='<div class="msg-err">Erreur réseau — vérifiez la connexion et réessayez.</div>';}
 }
 async function renewFromSettings(){
  const k=document.getElementById('s-key').value.trim();
@@ -1534,7 +1598,7 @@ function invDocHTML(iv){
  return `<div class="inv-doc"><div class="inv-head">${S.company.logo?`<img src="${S.company.logo}" alt="">`:''}<div><div class="inv-co">${esc(S.company.name)}</div><div class="inv-num">${iv.proforma?'FACTURE PRO FORMA ':'FACTURE '}${esc(iv.num)}${invStatus(iv)==='cancel'?' — ANNULÉE':invStatus(iv)==='paid'?' — PAYÉE':invStatus(iv)==='part'?' — PARTIELLEMENT RÉGLÉE':''}</div></div></div>
  <div class="inv-meta"><div><b>Client :</b> ${esc(iv.client)}${iv.phone?'<br><b>Tél :</b> '+esc(iv.phone):''}${(function(){const c=iv.clientId?S.clients.find(x=>x.id===iv.clientId):null;return c&&c.address?'<br><b>Adresse :</b> '+esc(c.address):'';})()}</div><div><b>Date :</b> ${dateLabel(iv.date)}${invStatus(iv)==='part'?'<br><b>Réglé :</b> '+fmt(invPaid(iv))+' — <b>Reste dû :</b> '+fmt(invTotals(iv).ttc-invPaid(iv)):''}</div></div>
  <table class="inv-table"><thead><tr><th>Désignation</th><th style="text-align:right">Qté</th><th style="text-align:right">P.U. (${esc(S.company.symbol)})</th><th style="text-align:right">Total</th></tr></thead><tbody>${iv.lines.map(l=>`<tr><td>${esc(l.label)}</td><td style="text-align:right">${l.qty}</td><td style="text-align:right">${NF.format(l.pu)}</td><td style="text-align:right">${NF.format(l.qty*l.pu)}</td></tr>`).join('')}</tbody></table>
- <div class="inv-tot"><div>Total HT : ${fmt(t.ht)}</div>${iv.tva>0?`<div>TVA (${iv.tva} %) : ${fmt(t.tva)}</div>`:''}<div class="ttc">Total TTC : ${fmt(t.ttc)}</div></div>
+ <div class="inv-tot">${t.remise>0?`<div>Sous-total HT : ${fmt(t.htBrut)}</div><div>Réduction${iv.disc&&iv.disc.t==='pct'?' ('+iv.disc.v+' %)':''} : -${fmt(t.remise)}</div>`:''}<div>Total HT : ${fmt(t.ht)}</div>${iv.tva>0?`<div>TVA (${iv.tva} %) : ${fmt(t.tva)}</div>`:''}<div class="ttc">Total TTC : ${fmt(t.ttc)}</div></div>
  <div style="margin-top:1rem;font-size:.78rem;font-weight:700;border-top:1px dashed #d8d2c4;padding-top:.6rem">${esc(arrete(iv))}</div>
  <div class="inv-foot">Document généré avec Trezo</div></div>`;
 }
@@ -1654,7 +1718,7 @@ function invCliMatch(){
  const v=document.getElementById('iv-client').value.trim().toLowerCase();
  const c=S.clients.find(x=>cliFull(x).toLowerCase()===v);
  const h=document.getElementById('iv-cli-hint');if(!h)return;
- if(c){if(c.phone)document.getElementById('iv-tel').value=c.phone;h.textContent='Client trouvé dans la base ✓';}
+ if(c){if(c.phone)document.getElementById('iv-tel').value=c.phone;const ad=document.getElementById('iv-addr');if(ad&&c.address&&!ad.value)ad.value=c.address;h.textContent='Client trouvé dans la base ✓ — informations remplies automatiquement';}
  else h.textContent=v?'Nouveau client — il sera ajouté automatiquement à la base':'';
 }
 
