@@ -1,5 +1,5 @@
-/* Trezo Cloud — service worker : cache de l'interface, JAMAIS des données Supabase */
-const CACHE = 'trezo-cloud-v12';
+/* Trezo Cloud — SW : réseau d'abord pour la page/config (mises à jour immédiates), cache pour les librairies. API Supabase jamais mise en cache. */
+const CACHE = 'trezo-cloud-v13';
 const ASSETS = [
   './', './index.html', './config.js', './manifest.webmanifest', './icon-192.png', './icon-512.png',
   'https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;800&display=swap',
@@ -19,9 +19,16 @@ self.addEventListener('activate', e => {
 self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET') return;
   const u = new URL(e.request.url);
-  // Les appels à l'API Supabase (données, auth) ne sont jamais mis en cache
   if (u.origin !== location.origin && STATIC_HOSTS.indexOf(u.host) === -1) return;
-  e.respondWith(caches.match(e.request).then(r => r || fetch(e.request).then(res => {
-    const cp = res.clone(); caches.open(CACHE).then(c => c.put(e.request, cp)); return res;
-  }).catch(() => e.request.mode === 'navigate' ? caches.match('./index.html') : undefined)));
+  const core = e.request.mode === 'navigate' || u.pathname.endsWith('/config.js') || u.pathname.endsWith('/index.html');
+  if (core) {
+    /* Réseau d'abord : chaque déploiement est visible au premier rechargement ; le cache ne sert qu'hors ligne */
+    e.respondWith(fetch(e.request).then(res => {
+      const cp = res.clone(); caches.open(CACHE).then(c => c.put(e.request, cp)); return res;
+    }).catch(() => caches.match(e.request).then(r => r || caches.match('./index.html'))));
+  } else {
+    e.respondWith(caches.match(e.request).then(r => r || fetch(e.request).then(res => {
+      const cp = res.clone(); caches.open(CACHE).then(c => c.put(e.request, cp)); return res;
+    })));
+  }
 });

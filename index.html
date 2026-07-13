@@ -234,7 +234,7 @@ const CAT_OUT=["Achats fournisseurs","Loyer","Salaires","Transport","Électricit
 const DEFAULT={v:2,company:{name:"",currency:"XOF",symbol:"FCFA",logo:null},license:null,products:[],accounts:[],clients:[],charges:[],chgPays:[],tx:[],employees:[],salPays:[],goals:[],invoices:[],journal:[],settings:{pin:null,readOnly:false,invSeq:0}};
 const LOGO='data:image/svg+xml;utf8,'+encodeURIComponent("<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect width='192' height='192' rx='42' fill='#0E5A45'/><rect x='46' y='104' width='22' height='42' rx='6' fill='#F2B33D'/><rect x='78' y='84' width='22' height='62' rx='6' fill='#7FC8A9'/><rect x='110' y='58' width='22' height='88' rx='6' fill='#FFFFFF'/><rect x='38' y='36' width='116' height='16' rx='6' fill='#FFFFFF'/></svg>");
 let S=JSON.parse(JSON.stringify(DEFAULT));
-let SB=null,SESSION=null,COMPANY=null,DOC_VERSION=1,SAVE_T=null,SAVING=false,PENDING=false,PERMS=null,MYROLE='owner';
+let SB=null,SESSION=null,COMPANY=null,DOC_VERSION=1,SAVE_T=null,SAVING=false,PENDING=false,PERMS=null,MYROLE='owner',MEMS=[];
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
 const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const todayStr=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');};
@@ -376,6 +376,7 @@ function authErr(e){
  if(m.indexOf('at least 6')>=0)return 'Mot de passe : 6 caractères minimum.';
  if(m.indexOf('invalid_key')>=0)return 'Clé invalide pour ce nom d’entreprise. Vérifiez la clé et l’orthographe exacte du nom.';
  if(m.indexOf('expired_key')>=0)return 'Cette clé est expirée. Contactez votre revendeur.';
+ if(m.indexOf('already_member')>=0)return 'Ce collaborateur fait déjà partie de cette entreprise.';
  if(m.indexOf('already_has_company')>=0)return 'Ce compte est déjà rattaché à une entreprise.';
  if(m.indexOf('invalid_code')>=0)return 'Code d’invitation invalide, déjà utilisé ou expiré.';
  if(m.indexOf('not_owner')>=0)return 'Action réservée à l’administrateur.';
@@ -433,7 +434,30 @@ async function loadWorkspace(){
  const r=await SB.from('memberships').select('company_id,role,perms,companies(*)');
  if(r.error){obFail(r.error);return;}
  if(!r.data||!r.data.length){showCompanySetup();return;}
- COMPANY=r.data[0].companies;MYROLE=r.data[0].role||'owner';PERMS=r.data[0].perms||null;applyCompany();
+ MEMS=r.data;
+ let mem=r.data[0];
+ if(r.data.length>1){
+  const saved=localStorage.getItem('trezo_company');
+  const f=r.data.find(x=>x.company_id===saved);
+  if(f)mem=f;else{showCompanyPicker();return;}
+ }
+ enterCompany(mem);
+}
+function showCompanyPicker(){
+ obShow(`<h2>Choisissez une entreprise</h2>
+ <p class="fine">Votre compte est rattaché à ${MEMS.length} entreprises. Sélectionnez celle sur laquelle travailler — vous pourrez changer à tout moment depuis Réglages.</p>
+ ${MEMS.map((m,i)=>`<button class="btn btn-o btn-full mt" onclick="pickCompany(${i})">${esc(m.companies.name)}${m.role==='owner'?' — administrateur':''}</button>`).join('')}
+ <button class="btn btn-full mt" style="color:var(--gris)" onclick="cloudSignOut()">Se déconnecter</button>`,1);
+}
+function pickCompany(i){
+ const m=MEMS[i];if(!m)return;
+ localStorage.setItem('trezo_company',m.company_id);
+ enterCompany(m);
+}
+function switchCompany(){localStorage.removeItem('trezo_company');location.reload();}
+async function enterCompany(mem){
+ obShow('<div class="empty">Chargement de votre espace…</div>',1);
+ COMPANY=mem.companies;MYROLE=mem.role||'owner';PERMS=mem.perms||null;applyCompany();
  if(COMPANY.suspended){renderHeader();showSuspended();return;}
  if(licDaysLeft()<=0){renderHeader();showExpired();return;}
  const cd=await SB.from('company_data').select('data,version').eq('company_id',COMPANY.id).single();
@@ -1127,7 +1151,7 @@ function invStatus(iv){if(iv.proforma)return'pro';if(iv.cancelled)return'cancel'
 R.fact=function(){
  document.getElementById('v-fact').innerHTML=`
  <button class="btn btn-p btn-full adm" onclick="newInvoice()" style="margin-bottom:1rem">+ Nouvelle facture</button>
- <div class="tabs"><button class="${FFILT==='all'?'on':''}" onclick="FFILT='all';renderFactTable()">Toutes</button><button class="${FFILT==='paid'?'on':''}" onclick="FFILT='paid';renderFactTable()">Payées</button><button class="${FFILT==='part'?'on':''}" onclick="FFILT='part';renderFactTable()">Partielles</button><button class="${FFILT==='unpaid'?'on':''}" onclick="FFILT='unpaid';renderFactTable()">Impayées</button><button class="${FFILT==='pro'?'on':''}" onclick="FFILT='pro';renderFactTable()">Pro forma</button><button class="${FFILT==='cancel'?'on':''}" onclick="FFILT='cancel';renderFactTable()">Annulées</button></div>
+ <div class="tabs"><button class="${FFILT==='all'?'on':''}" onclick="setFFILT('all')">Toutes</button><button class="${FFILT==='paid'?'on':''}" onclick="setFFILT('paid')">Payées</button><button class="${FFILT==='part'?'on':''}" onclick="setFFILT('part')">Partielles</button><button class="${FFILT==='unpaid'?'on':''}" onclick="setFFILT('unpaid')">Impayées</button><button class="${FFILT==='pro'?'on':''}" onclick="setFFILT('pro')">Pro forma</button><button class="${FFILT==='cancel'?'on':''}" onclick="setFFILT('cancel')">Annulées</button></div>
  <div class="card"><h2>Suivi des factures &amp; créances clients</h2>
   <div class="grid2" style="margin:.6rem 0 .7rem"><input placeholder="Rechercher (client, n° facture…)" value="${esc(FQ)}" oninput="FQ=this.value;renderFactTable()"><input type="month" value="${FMM}" onchange="FMM=this.value;renderFactTable()"></div>
   <div class="grid2" style="margin-bottom:.8rem"><button class="btn btn-o btn-sm" onclick="exportFactXls()">Exporter Excel</button><button class="btn btn-o btn-sm" onclick="exportFactPdf()">Exporter PDF</button></div>
@@ -1135,6 +1159,7 @@ R.fact=function(){
   <div class="twrap" id="fact-table"></div></div>`;
  renderFactTable();
 };
+function setFFILT(v){FFILT=v;R.fact();}
 function factList(){
  const q=FQ.trim().toLowerCase();
  let list=S.invoices.filter(iv=>{
@@ -1420,7 +1445,7 @@ R.set=function(){
   <p class="fine">Invitez vos collaborateurs et définissez leurs droits module par module : <b>Aucun accès</b>, <b>Lecture seule</b>, <b>Écriture</b> (créer &amp; modifier, sans supprimer) ou <b>Total</b>.</p>
   <div id="mem-list" class="fine">Chargement…</div>
   <div class="grid2 mt adm"><button class="btn btn-p" onclick="newUserOpen()">+ Créer un compte</button><button class="btn btn-o" onclick="invitOpen()">Inviter par code</button></div></div>`:''}
- <div class="card"><h2>Compte</h2>
+ <div class="card"><h2>Compte</h2>${MEMS.length>1?`<button class="btn btn-o btn-full" style="margin:.4rem 0 .6rem" onclick="switchCompany()">⇄ Changer d’entreprise (${MEMS.length} rattachées)</button>`:''}
   <p class="fine">Connecté : <b>${esc(email)}</b>. Vos données sont synchronisées dans le cloud et accessibles depuis n’importe quel appareil avec cet identifiant.</p>
   <div class="grid2 mt"><button class="btn btn-o adm" onclick="cloudChangePass()">Changer le mot de passe</button><button class="btn btn-o" onclick="cloudSignOut()">Se déconnecter</button></div></div>
  <div class="card"><h2>Comptes &amp; modes d’encaissement</h2>
