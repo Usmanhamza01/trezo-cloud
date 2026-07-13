@@ -193,6 +193,7 @@ body.readonly .ro-banner{display:block}
   </div>
   <button class="btn-lock" id="btn-refresh" title="Recharger les données depuis le cloud">⟳</button>
   <button class="btn-lock" id="btn-lock" title="Basculer le mode lecture seule">🔒 Verrouiller</button>
+  <button class="btn-lock" id="btn-logout" title="Se déconnecter">⏻ Déconnexion</button>
 </header>
 
 <aside class="side" id="side"></aside>
@@ -229,8 +230,8 @@ body.readonly .ro-banner{display:block}
 const CONFIG=window.TREZO_CONFIG||{};
 const CURRENCIES=[["XOF","FCFA","Franc CFA (UEMOA)"],["XAF","FCFA","Franc CFA (CEMAC)"],["MAD","DH","Dirham marocain"],["TND","DT","Dinar tunisien"],["DZD","DA","Dinar algérien"],["EGP","E£","Livre égyptienne"],["NGN","₦","Naira nigérian"],["GHS","GH₵","Cedi ghanéen"],["KES","KSh","Shilling kényan"],["TZS","TSh","Shilling tanzanien"],["UGX","USh","Shilling ougandais"],["RWF","FRw","Franc rwandais"],["GNF","FG","Franc guinéen"],["CDF","FC","Franc congolais"],["MRU","UM","Ouguiya mauritanien"],["ZAR","R","Rand sud-africain"],["ETB","Br","Birr éthiopien"],["USD","$","Dollar US"],["EUR","€","Euro"]];
 const CAT_IN=["Ventes","Prestations de services","Remboursement","Apport","Autre"];
-const CAT_OUT=["Achats fournisseurs","Loyer","Salaires","Transport","Électricité & eau","Internet & téléphone","Impôts & taxes","Entretien","Autre"];
-const DEFAULT={v:2,company:{name:"",currency:"XOF",symbol:"FCFA",logo:null},license:null,products:[],accounts:[],clients:[],tx:[],employees:[],salPays:[],goals:[],invoices:[],journal:[],settings:{pin:null,readOnly:false,invSeq:0}};
+const CAT_OUT=["Achats fournisseurs","Loyer","Salaires","Transport","Électricité & eau","Internet & téléphone","Impôts & taxes","Entretien","Autre",'Charges fixes'];
+const DEFAULT={v:2,company:{name:"",currency:"XOF",symbol:"FCFA",logo:null},license:null,products:[],accounts:[],clients:[],charges:[],chgPays:[],tx:[],employees:[],salPays:[],goals:[],invoices:[],journal:[],settings:{pin:null,readOnly:false,invSeq:0}};
 const LOGO='data:image/svg+xml;utf8,'+encodeURIComponent("<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect width='192' height='192' rx='42' fill='#0E5A45'/><rect x='46' y='104' width='22' height='42' rx='6' fill='#F2B33D'/><rect x='78' y='84' width='22' height='62' rx='6' fill='#7FC8A9'/><rect x='110' y='58' width='22' height='88' rx='6' fill='#FFFFFF'/><rect x='38' y='36' width='116' height='16' rx='6' fill='#FFFFFF'/></svg>");
 let S=JSON.parse(JSON.stringify(DEFAULT));
 let SB=null,SESSION=null,COMPANY=null,DOC_VERSION=1,SAVE_T=null,SAVING=false,PENDING=false,PERMS=null,MYROLE='owner';
@@ -272,7 +273,7 @@ async function flushSave(){
  if(SAVING){PENDING=true;return;}
  SAVING=true;PENDING=false;
  try{
-  const payload={products:S.products,accounts:S.accounts,clients:S.clients,tx:S.tx,employees:S.employees,salPays:S.salPays,goals:S.goals,invoices:S.invoices,journal:S.journal,settings:S.settings,logo:S.company.logo};
+  const payload={products:S.products,accounts:S.accounts,clients:S.clients,charges:S.charges,chgPays:S.chgPays,tx:S.tx,employees:S.employees,salPays:S.salPays,goals:S.goals,invoices:S.invoices,journal:S.journal,settings:S.settings,logo:S.company.logo};
   const r=await SB.rpc('save_data',{p_company:COMPANY.id,p_data:payload,p_version:DOC_VERSION});
   if(r.error)throw r.error;
   DOC_VERSION=r.data;setSync(' · ✓ synchronisé');
@@ -281,6 +282,7 @@ async function flushSave(){
   if(m.indexOf('version_conflict')>=0){toast('Données modifiées depuis un autre appareil — rechargement…');setTimeout(()=>location.reload(),1400);SAVING=false;return;}
   if(m.indexOf('license_expired')>=0){SAVING=false;showExpired();return;}
   if(m.indexOf('read_only_profile')>=0){setSync(' · lecture seule');toast('Profil en lecture seule — modification refusée par le serveur');SAVING=false;PENDING=false;return;}
+  if(m.indexOf('suspended')>=0){SAVING=false;PENDING=false;showSuspended();return;}
   setSync(' · hors ligne — réessai…');PENDING=true;
   setTimeout(()=>{SAVING=false;flushSave();},8000);return;
  }
@@ -306,13 +308,13 @@ fact:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2
 jour:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 4h13a2 2 0 012 2v14H6a2 2 0 01-2-2V4z"/><path d="M4 4a2 2 0 012-2h11v4"/><path d="M9 9h6"/></svg>',
 set:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 00-.1-1.2l2-1.5-2-3.5-2.3 1a7 7 0 00-2-1.2L14 3h-4l-.5 2.6a7 7 0 00-2 1.2l-2.4-1-2 3.5 2 1.5A7 7 0 005 12c0 .4 0 .8.1 1.2l-2 1.5 2 3.5 2.3-1a7 7 0 002 1.2L10 21h4l.5-2.6a7 7 0 002-1.2l2.4 1 2-3.5-2-1.5c.1-.4.1-.8.1-1.2z"/></svg>',
 plus:'<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>'};
-const VIEWS=[["dash","Tableau"],["flux","Flux"],["cli","Clients"],["sal","Salaires"],["obj","Objectifs"],["stock","Stocks"],["fact","Factures"],["jour","Journal"],["set","Réglages"]];
+const VIEWS=[["dash","Tableau"],["flux","Flux"],["cli","Clients"],["sal","Charges fixes"],["obj","Objectifs"],["stock","Stocks"],["fact","Factures"],["jour","Journal"],["set","Réglages"]];
 let CUR='dash';
 const R={};
 function renderNav(){
  const bottom=[["dash","Tableau"],["flux","Flux"],["fact","Factures"],["stock","Stocks"]];
  document.getElementById('bnav').innerHTML=bottom.filter(function(it){return permOf(it[0])!=='n';}).map(function(it){return '<button data-v="'+it[0]+'" onclick="go(\''+it[0]+'\')">'+IC[it[0]]+it[1]+'</button>';}).join('')+'<button onclick="openSheet(\'sheet-plus\')">'+IC.plus+'Plus</button>';
- document.getElementById('plus-items').innerHTML=[["cli","Clients"],["sal","Salaires"],["obj","Objectifs"],["jour","Journal"],["set","Réglages"]].filter(function(it){return permOf(it[0])!=='n';}).map(function(it){return '<button class="menu-it" onclick="closeSheet(\'sheet-plus\');go(\''+it[0]+'\')">'+IC[it[0]]+it[1]+'</button>';}).join('');
+ document.getElementById('plus-items').innerHTML=[["cli","Clients"],["sal","Charges fixes"],["obj","Objectifs"],["jour","Journal"],["set","Réglages"]].filter(function(it){return permOf(it[0])!=='n';}).map(function(it){return '<button class="menu-it" onclick="closeSheet(\'sheet-plus\');go(\''+it[0]+'\')">'+IC[it[0]]+it[1]+'</button>';}).join('');
  document.getElementById('side').innerHTML='<div class="slogo"><img src="'+LOGO+'" alt="" style="width:34px;height:34px;border-radius:9px">Trezo</div>'+VIEWS.filter(function(it){return permOf(it[0])!=='n';}).map(function(it){return '<button data-v="'+it[0]+'" onclick="go(\''+it[0]+'\')">'+IC[it[0]]+it[1]+'</button>';}).join('');
 }
 function go(v){CUR=v;document.querySelectorAll('.view').forEach(x=>x.classList.remove('on'));const el=document.getElementById('v-'+v);el.classList.add('on');document.querySelectorAll('[data-v]').forEach(x=>x.classList.toggle('on',x.dataset.v===v));
@@ -349,6 +351,7 @@ document.getElementById('btn-refresh').onclick=async function(){
   if(PENDING||SAVING){clearTimeout(SAVE_T);await flushSave();}
   const co=await SB.from('companies').select('*').eq('id',COMPANY.id).single();
   if(!co.error&&co.data){COMPANY=co.data;applyCompany();}
+  if(COMPANY.suspended){renderHeader();showSuspended();return;}
   if(licDaysLeft()<=0){renderHeader();showExpired();return;}
   const cd=await SB.from('company_data').select('data,version').eq('company_id',COMPANY.id).single();
   if(cd.error)throw cd.error;
@@ -357,6 +360,7 @@ document.getElementById('btn-refresh').onclick=async function(){
   setSync(' · ✓ synchronisé');toast('Données actualisées');
  }catch(e){setSync(' · hors ligne');toast('Actualisation impossible — vérifiez la connexion');}
 };
+document.getElementById('btn-logout').onclick=function(){if(confirm('Se déconnecter de Trezo ?'))cloudSignOut();};
 
 function permOf(v){if(MYROLE==='owner'||!PERMS||!PERMS.m)return't';return PERMS.m[v]||'t';}
 
@@ -377,6 +381,7 @@ function authErr(e){
  if(m.indexOf('not_owner')>=0)return 'Action réservée à l’administrateur.';
  if(m.indexOf('cannot_edit_owner')>=0)return 'Le compte administrateur ne peut pas être modifié.';
  if(m.indexOf('read_only_profile')>=0)return 'Votre profil est en lecture seule.';
+ if(m.indexOf('suspended')>=0)return 'Licence suspendue — contactez votre fournisseur Trezo.';
  if(m.indexOf('Failed to fetch')>=0||m.indexOf('NetworkError')>=0)return 'Connexion Internet requise — vérifiez votre réseau.';
  return 'Erreur : '+m;
 }
@@ -418,7 +423,7 @@ function applyCompany(){
 }
 function hydrate(cd){
  DOC_VERSION=cd.version;const d=cd.data||{};
- ['products','accounts','clients','tx','employees','salPays','goals','invoices','journal'].forEach(k=>S[k]=Array.isArray(d[k])?d[k]:[]);
+ ['products','accounts','clients','charges','chgPays','tx','employees','salPays','goals','invoices','journal'].forEach(k=>S[k]=Array.isArray(d[k])?d[k]:[]);
  S.settings=Object.assign({},DEFAULT.settings,d.settings||{});
  S.company.logo=d.logo||null;
  if(!S.accounts.length)S.accounts=[{id:'a_caisse',name:'Caisse'},{id:'a_banque',name:'Banque'},{id:'a_om',name:'Orange Money'},{id:'a_wave',name:'Wave'}];
@@ -429,6 +434,7 @@ async function loadWorkspace(){
  if(r.error){obFail(r.error);return;}
  if(!r.data||!r.data.length){showCompanySetup();return;}
  COMPANY=r.data[0].companies;MYROLE=r.data[0].role||'owner';PERMS=r.data[0].perms||null;applyCompany();
+ if(COMPANY.suspended){renderHeader();showSuspended();return;}
  if(licDaysLeft()<=0){renderHeader();showExpired();return;}
  const cd=await SB.from('company_data').select('data,version').eq('company_id',COMPANY.id).single();
  if(cd.error){obFail(cd.error);return;}
@@ -514,6 +520,13 @@ function obFinish(){
  save();
  document.getElementById('ob').classList.remove('open');
  initApp();
+}
+function showSuspended(){
+ obShow(`
+ <h2>Licence suspendue</h2>
+ <p class="fine">L’accès de <b>${esc((COMPANY&&COMPANY.name)||S.company.name)}</b> a été suspendu par votre fournisseur. Vos données sont conservées en sécurité dans le cloud. Contactez votre fournisseur Trezo pour régulariser la situation, puis réessayez.</p>
+ <button class="btn btn-p btn-full mt" onclick="location.reload()">Réessayer</button>
+ <button class="btn btn-o btn-full mt" onclick="cloudSignOut()">Se déconnecter</button>`,1);
 }
 function showExpired(){
  obShow(`
@@ -751,8 +764,10 @@ function xferDo(){
 /* ===== Salaires ===== */
 let SALM=curMonth();
 R.sal=function(){
+ if(SALTAB==='chg'){renderCharges();return;}
  const tot=S.employees.reduce((a,e)=>a+e.salary,0);
  document.getElementById('v-sal').innerHTML=`
+ <div class="tabs"><button class="on">Salaires</button><button onclick="SALTAB='chg';R.sal()">Autres charges fixes</button></div>
  <div class="card"><h2>Salaires</h2>
   <label>Mois</label><input type="month" id="sal-m" value="${SALM}" onchange="SALM=this.value;R.sal()">
   <div class="fine mt">Masse salariale mensuelle : <b>${fmt(tot)}</b></div>
@@ -788,6 +803,91 @@ function paySal(id){
 }
 
 /* ===== Objectifs ===== */
+/* ===== Charges fixes (autres que salaires) ===== */
+let SALTAB='sal';
+const PERIODS=[['m','Mensuelle',1],['t','Trimestrielle',3],['s','Semestrielle',6],['a','Annuelle',12]];
+function perLbl(p){const x=PERIODS.find(y=>y[0]===p);return x?x[1]:'Mensuelle';}
+function perMonths(p){const x=PERIODS.find(y=>y[0]===p);return x?x[2]:1;}
+function chgPeriodKey(c,d){
+ d=d||new Date();
+ const n=perMonths(c.per||'m');
+ const start=Math.floor(d.getMonth()/n)*n;
+ return d.getFullYear()+'-'+String(start+1).padStart(2,'0');
+}
+function chgPaid(c){const k=chgPeriodKey(c);return S.chgPays.find(p=>p.chargeId===c.id&&p.period===k);}
+function chgMonthly(){return S.charges.reduce((a,c)=>a+(c.amount||0)/perMonths(c.per||'m'),0);}
+function renderCharges(){
+ document.getElementById('v-sal').innerHTML=`
+ <div class="tabs"><button onclick="SALTAB='sal';R.sal()">Salaires</button><button class="on">Autres charges fixes</button></div>
+ <div class="kgrid">
+  <div class="kpi"><div class="lbl">Charges fixes (équivalent mensuel)</div><div class="val" style="font-size:1.05rem">${fmt(Math.round(chgMonthly()))}</div></div>
+  <div class="kpi out"><div class="lbl">Charges payées ce mois-ci</div><div class="val" style="font-size:1.05rem">${fmt(S.chgPays.filter(p=>p.date&&p.date.slice(0,7)===curMonth()).reduce((a,p)=>a+p.amount,0))}</div></div>
+ </div>
+ <div class="card adm"><h2>Nouvelle charge fixe</h2>
+  <div class="grid2"><div><label>Libellé (loyer, électricité, Internet…)</label><input id="c-lbl"></div><div><label>Montant (${S.company.symbol})</label><input id="c-amt" type="number" min="0"></div></div>
+  <div class="grid2"><div><label>Périodicité</label><select id="c-per">${PERIODS.map(p=>`<option value="${p[0]}">${p[1]}</option>`).join('')}</select></div><div><label>Jour d’échéance (optionnel)</label><input id="c-due" type="number" min="1" max="31" placeholder="Ex. : 5"></div></div>
+  <label>Commentaire (optionnel)</label><input id="c-note">
+  <button class="btn btn-p btn-full mt" onclick="addCharge()">Ajouter la charge</button></div>
+ <div class="card"><h2>Charges récurrentes <span class="fine">(${S.charges.length})</span></h2>
+ ${S.charges.map(c=>{
+  const pd=chgPaid(c);
+  return `<div class="row"><div class="rmain"><div class="rt">${esc(c.label)}</div><div class="rs">${fmt(c.amount)} · ${perLbl(c.per)}${c.due?' · échéance le '+c.due:''}${c.note?' · '+esc(c.note):''}</div></div>${pd?`<span class="chip chip-g">Payée (${dateLabel(pd.date)})</span>`:`<span class="chip chip-a">À payer</span><button class="btn btn-sm btn-p adm" onclick="payCharge('${c.id}')">Payer</button>`}<button class="btn btn-sm btn-o adm act-edit" onclick="editCharge('${c.id}')">✎</button><button class="btn btn-sm btn-d adm act-del" onclick="delCharge('${c.id}')">✕</button></div>`;
+ }).join('')||'<div class="empty">Aucune charge fixe. Ajoutez le loyer, l’eau, l’électricité, Internet, les assurances…</div>'}</div>`;
+}
+function addCharge(){
+ const label=document.getElementById('c-lbl').value.trim();
+ const amount=+document.getElementById('c-amt').value;
+ if(!label||!amount||amount<=0){toast('Libellé et montant requis');return;}
+ const per=document.getElementById('c-per').value;
+ S.charges.push({id:uid(),label:label,amount:amount,per:per,due:+document.getElementById('c-due').value||null,note:document.getElementById('c-note').value.trim()});
+ log('Charge fixe ajoutée : '+label+' ('+fmt(amount)+' · '+perLbl(per)+')');
+ save();renderCharges();toast('Charge ajoutée');
+}
+function editCharge(id){
+ const c=S.charges.find(x=>x.id===id);if(!c)return;
+ openModal(`<h2>Modifier la charge <button class="close" onclick="closeSheet('sheet-modal')">×</button></h2>
+ <div class="grid2"><div><label>Libellé</label><input id="ce2-lbl" value="${esc(c.label)}"></div><div><label>Montant (${S.company.symbol})</label><input id="ce2-amt" type="number" value="${c.amount}"></div></div>
+ <div class="grid2"><div><label>Périodicité</label><select id="ce2-per">${PERIODS.map(p=>`<option value="${p[0]}" ${c.per===p[0]?'selected':''}>${p[1]}</option>`).join('')}</select></div><div><label>Jour d’échéance</label><input id="ce2-due" type="number" min="1" max="31" value="${c.due||''}"></div></div>
+ <label>Commentaire</label><input id="ce2-note" value="${esc(c.note||'')}">
+ <button class="btn btn-p btn-full mt" onclick="saveCharge('${c.id}')">Enregistrer</button>`);
+}
+function saveCharge(id){
+ const c=S.charges.find(x=>x.id===id);if(!c)return;
+ const label=document.getElementById('ce2-lbl').value.trim();
+ const amount=+document.getElementById('ce2-amt').value;
+ if(!label||!amount||amount<=0){toast('Libellé et montant requis');return;}
+ const ch=[];
+ if(label!==c.label)ch.push('Libellé : '+c.label+' → '+label);
+ if(amount!==c.amount)ch.push('Montant : '+fmt(c.amount)+' → '+fmt(amount));
+ c.label=label;c.amount=amount;c.per=document.getElementById('ce2-per').value;c.due=+document.getElementById('ce2-due').value||null;c.note=document.getElementById('ce2-note').value.trim();
+ log('Charge fixe modifiée'+(ch.length?' — '+ch.join(' · '):' : '+label));
+ save();closeSheet('sheet-modal');renderCharges();
+}
+function delCharge(id){
+ const c=S.charges.find(x=>x.id===id);if(!c)return;
+ if(!confirm('Supprimer la charge « '+c.label+' » ? Les paiements déjà enregistrés restent dans la trésorerie.'))return;
+ S.charges=S.charges.filter(x=>x.id!==id);
+ log('Charge fixe supprimée : '+c.label);
+ save();renderCharges();
+}
+function payCharge(id){
+ const c=S.charges.find(x=>x.id===id);if(!c)return;
+ openModal(`<h2>Payer — ${esc(c.label)} <button class="close" onclick="closeSheet('sheet-modal')">×</button></h2>
+ <p class="fine">Période : <b>${monthLabel(chgPeriodKey(c))}</b> (${perLbl(c.per).toLowerCase()})</p>
+ <div class="grid2"><div><label>Montant (${S.company.symbol})</label><input id="cp-amt" type="number" value="${c.amount}"></div><div><label>Date</label><input id="cp-date" type="date" value="${todayStr()}"></div></div>
+ <label>Compte / mode de paiement</label><select id="cp-acc">${S.accounts.map(a=>`<option value="${a.id}">${esc(a.name)}</option>`).join('')}</select>
+ <button class="btn btn-p btn-full mt" onclick="payChargeDo('${c.id}')">Enregistrer le paiement</button>`);
+}
+function payChargeDo(id){
+ const c=S.charges.find(x=>x.id===id);if(!c)return;
+ const amt=+document.getElementById('cp-amt').value;
+ const d=document.getElementById('cp-date').value||todayStr();
+ if(!amt||amt<=0){toast('Montant invalide');return;}
+ S.chgPays.push({id:uid(),chargeId:c.id,period:chgPeriodKey(c),date:d,amount:amt});
+ S.tx.push({id:uid(),type:'out',amount:amt,cat:'Charges fixes',desc:c.label+' ('+perLbl(c.per).toLowerCase()+')',date:d,acc:document.getElementById('cp-acc').value,productId:null,qty:null});
+ log('Charge fixe payée : '+c.label+' — '+fmt(amt));
+ save();closeSheet('sheet-modal');renderCharges();toast('Paiement enregistré');
+}
 let CHO={};
 R.obj=function(){
  const m=curMonth();
@@ -887,6 +987,7 @@ function delGoal(id){S.goals=S.goals.filter(g=>g.id!==id);save();R.obj();}
 R.stock=function(){
  const val=S.products.reduce((a,p)=>a+p.qty*(p.cost||p.price||0),0);
  document.getElementById('v-stock').innerHTML=`
+ <div class="grid2 adm" style="margin-bottom:1rem"><button class="btn btn-o" onclick="stkImport()">Importer un stock</button><button class="btn btn-o" onclick="stkTpl()">Modèle .xlsx</button></div>
  <div class="card"><h2>Stocks</h2><div class="fine">Valeur estimée du stock : <b>${fmt(val)}</b></div>
  <div class="twrap mt"><table><tr><th>Produit</th><th>Stock</th><th>Prix vente</th><th>Prix achat</th><th class="adm"></th></tr>
  ${S.products.map(p=>`<tr class="${p.qty<=p.alert&&p.alert>0?'tr-alert':''}"><td><b>${esc(p.name)}</b></td><td><b>${p.qty}</b>${p.qty<=p.alert&&p.alert>0?' ⚠':''}</td><td>${NF.format(p.price)}</td><td>${NF.format(p.cost||0)}</td><td class="adm"><button class="btn btn-sm btn-p" onclick="moveStock('${p.id}',1)">+ Entrée</button> <button class="btn btn-sm btn-a" onclick="moveStock('${p.id}',-1)">− Sortie</button> <button class="btn btn-sm btn-o" onclick="editProd('${p.id}')">Modifier</button> <button class="btn btn-sm btn-d" onclick="delProd('${p.id}')">✕</button></td></tr>`).join('')||'<tr><td colspan="5"><div class="empty">Aucun produit. Ajoutez-en ci-dessous.</div></td></tr>'}
@@ -937,6 +1038,83 @@ function saveProd(id){
 
 /* ===== Factures ===== */
 let INV_LINES=[],INV_FROM_TX=null,INV_DATE=null,FFILT='all',FQ='',FMM='',FSORT='num',FDIR=-1;
+/* ===== Import de stock ===== */
+let IMPST=null;
+function stkTpl(){
+ if(!window.XLSX){toast('Module Excel non chargé — connectez-vous une fois à Internet');return;}
+ const wb=XLSX.utils.book_new();
+ const ws=XLSX.utils.aoa_to_sheet([
+  ['Produit','Quantité','Prix d\u2019achat','Prix de vente','Seuil d\u2019alerte'],
+  ['Sac de riz 50 kg',120,24500,28500,10],
+  ['Huile 20 L',36,18000,21000,5]]);
+ ws['!cols']=[{wch:28},{wch:10},{wch:13},{wch:13},{wch:13}];
+ XLSX.utils.book_append_sheet(wb,ws,'Stock');
+ XLSX.writeFile(wb,'modele-stock-trezo.xlsx');
+}
+function stkImport(){
+ openModal(`<h2>Importer un stock <button class="close" onclick="closeSheet('sheet-modal')">×</button></h2>
+ <p class="fine">Fichier <b>.xlsx</b> ou <b>.csv</b> avec les colonnes : <b>Produit</b> (obligatoire), <b>Quantité</b>, <b>Prix d\u2019achat</b>, <b>Prix de vente</b>, <b>Seuil d\u2019alerte</b>. Un produit dont le nom existe déjà sera <b>mis à jour</b> — aucun doublon n\u2019est créé. Rien n\u2019est enregistré avant votre validation de l\u2019aperçu.</p>
+ <input type="file" accept=".xlsx,.xls,.csv" onchange="stkHandle(this)">
+ <div id="stk-prev"></div>`);
+}
+function stkHandle(inp){
+ const f=inp.files[0];if(!f)return;
+ if(!window.XLSX){toast('Module Excel non chargé — connectez-vous une fois à Internet');return;}
+ const res=document.getElementById('stk-prev');
+ res.innerHTML='<div class="fine mt">Analyse du fichier…</div>';
+ const r=new FileReader();
+ r.onload=e=>{
+  try{
+   const wb=XLSX.read(e.target.result,{type:'array'});
+   const rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:''});
+   if(!rows.length){res.innerHTML='<div class="msg-err">Fichier vide ou illisible.</div>';return;}
+   if(rows.length>3000){res.innerHTML='<div class="msg-err">Maximum 3 000 lignes.</div>';return;}
+   const map={};
+   Object.keys(rows[0]).forEach(k=>{const n=stripAcc(k).toLowerCase().trim();
+    if(n.indexOf('produit')===0||n==='nom'||n.indexOf('designation')===0)map.name=k;
+    else if(n.indexOf('quantite')===0||n==='qte'||n==='stock')map.qty=k;
+    else if(n.indexOf('achat')>=0||n==='cout')map.cost=k;
+    else if(n.indexOf('vente')>=0)map.price=k;
+    else if(n.indexOf('seuil')===0||n.indexOf('alerte')>=0)map.alert=k;});
+   if(!map.name){res.innerHTML='<div class="msg-err">Structure invalide — colonne <b>Produit</b> introuvable. Téléchargez le modèle.</div>';return;}
+   IMPST={rows:[],neu:0,upd:0,err:0};
+   const seen={};
+   rows.forEach((row,i)=>{
+    const name=String(row[map.name]).trim();
+    const qty=map.qty?+String(row[map.qty]).replace(/[\s\u202F\u00A0]/g,''):0;
+    const cost=map.cost?+String(row[map.cost]).replace(/[\s\u202F\u00A0]/g,''):0;
+    const price=map.price?+String(row[map.price]).replace(/[\s\u202F\u00A0]/g,''):0;
+    const alert=map.alert?+String(row[map.alert]).replace(/[\s\u202F\u00A0]/g,''):0;
+    let st='new',motif='';
+    const kn=stripAcc(name).toLowerCase();
+    if(!name){st='err';motif='nom manquant';}
+    else if(isNaN(qty)||qty<0){st='err';motif='quantité invalide';}
+    else if(seen[kn]){st='err';motif='doublon dans le fichier (déjà ligne '+seen[kn]+')';}
+    else{seen[kn]=i+2;if(S.products.some(p=>stripAcc(p.name).toLowerCase()===kn))st='upd';}
+    if(st==='err')IMPST.err++;else if(st==='upd')IMPST.upd++;else IMPST.neu++;
+    IMPST.rows.push({name:name,qty:isNaN(qty)?0:qty,cost:isNaN(cost)?0:cost,price:isNaN(price)?0:price,alert:isNaN(alert)?0:alert,st:st,motif:motif,line:i+2});
+   });
+   const ok=IMPST.neu+IMPST.upd;
+   res.innerHTML='<div class="fine" style="margin-top:.7rem"><b>'+IMPST.neu+'</b> nouveau(x) · <b>'+IMPST.upd+'</b> mise(s) à jour · <b style="color:var(--rouge)">'+IMPST.err+'</b> erreur(s)</div>'
+    +'<div class="twrap" style="max-height:230px;overflow:auto;margin-top:.5rem"><table><tr><th>Ligne</th><th>Produit</th><th>Qté</th><th>Statut</th></tr>'
+    +IMPST.rows.slice(0,300).map(x=>'<tr><td>'+x.line+'</td><td>'+esc(x.name||'—')+'</td><td>'+x.qty+'</td><td>'+(x.st==='err'?'<span class="chip chip-r">'+esc(x.motif)+'</span>':x.st==='upd'?'<span class="chip chip-a">Mise à jour</span>':'<span class="chip chip-g">Nouveau</span>')+'</td></tr>').join('')+'</table></div>'
+    +(ok?'<button class="btn btn-p btn-full mt" onclick="stkApply()">Valider l\u2019import — '+ok+' produit(s)</button>':'');
+  }catch(err2){res.innerHTML='<div class="msg-err">Impossible de lire ce fichier. Vérifiez qu\u2019il s\u2019agit bien d\u2019un .xlsx ou .csv.</div>';}
+ };
+ r.readAsArrayBuffer(f);
+}
+function stkApply(){
+ if(!IMPST)return;
+ let neu=0,upd=0;
+ IMPST.rows.forEach(x=>{
+  if(x.st==='err')return;
+  const p=S.products.find(q=>stripAcc(q.name).toLowerCase()===stripAcc(x.name).toLowerCase());
+  if(p){p.qty=x.qty;if(x.cost)p.cost=x.cost;if(x.price)p.price=x.price;if(x.alert)p.alert=x.alert;upd++;}
+  else{S.products.push({id:uid(),name:x.name,qty:x.qty,cost:x.cost,price:x.price,alert:x.alert});neu++;}
+ });
+ log('Import de stock : '+neu+' produit(s) créé(s), '+upd+' mis à jour');
+ IMPST=null;save();closeSheet('sheet-modal');if(R[CUR])R[CUR]();toast('Stock importé : '+neu+' nouveau(x), '+upd+' mise(s) à jour');
+}
 function invTotals(iv){
  const htBrut=iv.lines.reduce((a,l)=>a+l.qty*l.pu,0);
  let remise=0;
@@ -1261,7 +1439,7 @@ R.set=function(){
   <label class="mt adm" style="display:block;margin-top:1rem"><span class="btn btn-o btn-full" style="display:flex">Importer une sauvegarde (migration)</span><input type="file" accept=".json,application/json" style="display:none" onchange="restore(this)"></label>
   <p class="fine mt">La sauvegarde cloud est automatique. L’archive JSON sert de copie personnelle et permet de migrer les données d’une installation Trezo Classique vers le cloud.</p>
   <button class="btn btn-d btn-full mt adm act-del" onclick="resetAll()">Vider les données de l’entreprise</button></div>
- <p class="fine" style="text-align:center;margin:.4rem 0 1.2rem">Trezo Cloud v2.8 — édition multi-utilisateurs</p>`;
+ <p class="fine" style="text-align:center;margin:.4rem 0 1.2rem">Trezo Cloud v2.9 — édition multi-utilisateurs</p>`;
  if(MYROLE==='owner')loadMembers();
 };
 function setLogo(inp){const f=inp.files[0];if(!f)return;resizeImg(f,url=>{S.company.logo=url;document.getElementById('s-logo-prev').src=url;save();renderHeader();toast('Logo mis à jour');});}
@@ -1287,7 +1465,7 @@ function accAdd(){const n=document.getElementById('acc-new').value.trim();if(!n)
 function accRename(id){const a=S.accounts.find(x=>x.id===id);if(!a)return;const n=prompt('Nouveau nom du compte :',a.name);if(!n||!n.trim())return;log('Compte renommé : '+a.name+' → '+n.trim());a.name=n.trim();save();R.set();}
 function accDel(id){const a=S.accounts.find(x=>x.id===id);if(!a)return;if(S.accounts.length<=1){toast('Gardez au moins un compte');return;}if(S.tx.some(x=>x.acc===id)){toast('Impossible : des opérations utilisent ce compte');return;}if(!confirm('Supprimer le compte '+a.name+' ?'))return;S.accounts=S.accounts.filter(x=>x.id!==id);log('Compte supprimé : '+a.name);save();R.set();}
 const PLEVELS=[['n','Aucun accès'],['r','Lecture seule'],['c','Création seule (sans modification)'],['w','Écriture (sans suppression)'],['t','Total']];
-const MODLBL={dash:'Tableau de bord',flux:'Trésorerie (Flux)',cli:'Clients',sal:'Salaires',obj:'Objectifs',stock:'Stocks',fact:'Facturation',jour:'Journal',set:'Réglages'};
+const MODLBL={dash:'Tableau de bord',flux:'Trésorerie (Flux)',cli:'Clients',sal:'Charges fixes',obj:'Objectifs',stock:'Stocks',fact:'Facturation',jour:'Journal',set:'Réglages'};
 function permsForm(cur){
  cur=(cur&&cur.m)?cur.m:{};
  return Object.keys(MODLBL).map(k=>`<div class="grid2" style="align-items:center;margin-top:.4rem"><div style="font-weight:700;font-size:.9rem">${MODLBL[k]}</div><select class="pm-sel" data-m="${k}">${PLEVELS.map(l=>`<option value="${l[0]}" ${(cur[k]||(k==='set'?'r':'t'))===l[0]?'selected':''}>${l[1]}</option>`).join('')}</select></div>`).join('');
@@ -1413,7 +1591,7 @@ function restore(inp){
    const d=JSON.parse(e.target.result);
    if(!d.v)throw 0;
    if(!confirm('Remplacer les données actuelles (flux, stocks, factures…) par celles de ce fichier ? Le nom d’entreprise et la licence ne changent pas.'))return;
-   ['products','accounts','clients','tx','employees','salPays','goals','invoices','journal'].forEach(k=>{S[k]=Array.isArray(d[k])?d[k]:[];});
+   ['products','accounts','clients','charges','chgPays','tx','employees','salPays','goals','invoices','journal'].forEach(k=>{S[k]=Array.isArray(d[k])?d[k]:[];});
    if(!S.accounts.length)S.accounts=[{id:'a_caisse',name:'Caisse'},{id:'a_banque',name:'Banque'},{id:'a_om',name:'Orange Money'},{id:'a_wave',name:'Wave'}];
    S.settings=Object.assign({},DEFAULT.settings,d.settings||{});
    if(d.company&&d.company.logo)S.company.logo=d.company.logo;
