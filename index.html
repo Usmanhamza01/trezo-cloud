@@ -175,6 +175,7 @@ body.readonly .ro-banner{display:block}
 .inv-tot .ttc{font-weight:800;font-size:1.05rem;margin-top:.25rem;color:var(--vert)}
 .inv-foot{margin-top:1.2rem;font-size:.7rem;color:#999}
 #print-area{display:none}
+#hd-ex{max-width:170px;font-weight:800;cursor:pointer}
 .thsort{cursor:pointer;user-select:none;white-space:nowrap}
 .thsort:hover{color:var(--vert)}
 @media print{body>*{display:none !important}#print-area{display:block !important}#print-area .inv-doc{box-shadow:none;border-radius:0;padding:0}}
@@ -192,6 +193,7 @@ body.readonly .ro-banner{display:block}
     <div class="hsub"><span id="h-lic"></span><span id="h-sync"></span></div>
   </div>
   <button class="btn-lock" id="btn-refresh" title="Recharger les données depuis le cloud">⟳</button>
+  <select class="btn-lock" id="hd-ex" title="Naviguer entre les exercices comptables"></select>
   <button class="btn-lock" id="btn-lock" title="Basculer le mode lecture seule">🔒 Verrouiller</button>
   <button class="btn-lock" id="btn-logout" title="Se déconnecter">⏻ Déconnexion</button>
 </header>
@@ -314,6 +316,7 @@ const VIEWS=[["dash","Tableau"],["flux","Flux"],["cli","Clients"],["sal","Charge
 let CUR='dash';
 const R={};
 function renderNav(){
+ renderExSel();
  const bottom=[["dash","Tableau"],["flux","Flux"],["fact","Factures"],["stock","Stocks"]];
  document.getElementById('bnav').innerHTML=bottom.filter(function(it){return permOf(it[0])!=='n';}).map(function(it){return '<button data-v="'+it[0]+'" onclick="go(\''+it[0]+'\')">'+IC[it[0]]+it[1]+'</button>';}).join('')+'<button onclick="openSheet(\'sheet-plus\')">'+IC.plus+'Plus</button>';
  document.getElementById('plus-items').innerHTML=[["cli","Clients"],["sal","Charges fixes"],["obj","Objectifs"],["jour","Journal"],["set","Réglages"]].filter(function(it){return permOf(it[0])!=='n';}).map(function(it){return '<button class="menu-it" onclick="closeSheet(\'sheet-plus\');go(\''+it[0]+'\')">'+IC[it[0]]+it[1]+'</button>';}).join('');
@@ -363,6 +366,7 @@ document.getElementById('btn-refresh').onclick=async function(){
  }catch(e){setSync(' · hors ligne');toast('Actualisation impossible — vérifiez la connexion');}
 };
 document.getElementById('btn-logout').onclick=function(){if(confirm('Se déconnecter de Trezo ?'))cloudSignOut();};
+document.getElementById('hd-ex').onchange=function(){EXY=+this.value;renderExSel();if(R[CUR])R[CUR]();toast(exClosed(EXY)?'Exercice '+EXY+' (clôturé) — consultation en lecture seule':'Exercice '+EXY);};
 
 function permOf(v){if(MYROLE==='owner'||!PERMS||!PERMS.m)return't';return PERMS.m[v]||'t';}
 
@@ -631,6 +635,7 @@ function txRow(x,del){
 /* ===== Tableau de bord ===== */
 let CH={};
 R.dash=function(){
+ if(EXY!==new Date().getFullYear()){renderDashEx();return;}
  const m=curMonth(),enc=txMonth(m,'in'),dec=txMonth(m,'out');
  const goalT=goalFor(m);
  const low=S.products.filter(p=>p.qty<=p.alert&&p.alert>0);
@@ -699,7 +704,7 @@ R.flux=function(){
 function renderFluxList(){
  const el=document.getElementById('flux-list');if(!el)return;
  const q=FLUX_Q.trim().toLowerCase();
- let list=S.tx.filter(x=>x.type===FLUX);
+ let list=S.tx.filter(x=>x.type===FLUX&&exYFilter(x.date));
  if(FLUX_M)list=list.filter(x=>x.date.slice(0,7)===FLUX_M);
  if(q)list=list.filter(x=>((x.desc||'')+' '+x.cat+' '+String(x.amount)).toLowerCase().indexOf(q)>=0);
  list.sort((a,b)=>b.date.localeCompare(a.date)||b.id.localeCompare(a.id));
@@ -1188,6 +1193,7 @@ function renderStockHist(){
 function renderMvTable(){
  const fp=document.getElementById('mv-p').value,ft=document.getElementById('mv-t').value,fm=document.getElementById('mv-m').value,fu=document.getElementById('mv-u').value,d1=document.getElementById('mv-d1').value,d2=document.getElementById('mv-d2').value;
  let list=S.stockMov.filter(m=>{
+  if(!exYFilter(m.d))return false;
   if(fp&&m.pid!==fp)return false;
   if(ft&&m.type!==ft)return false;
   if(fm&&m.d.slice(0,7)!==fm)return false;
@@ -1303,6 +1309,7 @@ function setFFILT(v){FFILT=v;R.fact();}
 function factList(){
  const q=FQ.trim().toLowerCase();
  let list=S.invoices.filter(iv=>{
+  if(!exYFilter(iv.date))return false;
   if(FFILT!=='all'&&invStatus(iv)!==FFILT)return false;
   if(FMM&&iv.date.slice(0,7)!==FMM)return false;
   if(q&&(iv.client+' '+iv.num).toLowerCase().indexOf(q)<0)return false;
@@ -1480,7 +1487,7 @@ function invPayDo(id){
  iv.pays=Array.isArray(iv.pays)?iv.pays:(iv.paid?[{d:iv.date,amount:t.ttc}]:[]);
  iv.pays.push({d:d,amount:amt});
  iv.paid=invPaid(iv)>=t.ttc-0.5;
- S.tx.push({id:uid(),type:'in',amount:amt,cat:'Ventes',desc:'Facture '+iv.num+' — '+iv.client+(iv.paid?'':' (acompte)'),date:d,acc:pacc,clientId:iv.clientId||null,productId:null,qty:null});
+ S.tx.push({id:uid(),type:'in',amount:amt,cat:'Ventes',desc:'Facture '+iv.num+' — '+iv.client+(iv.paid?'':' (acompte)'),date:d,acc:pacc,clientId:iv.clientId||null,ivId:iv.id,productId:null,qty:null});
  log('Encaissement facture '+iv.num+' ('+accName(pacc)+') : '+fmt(amt)+(iv.paid?' — facture soldée':' — reste dû '+fmt(Math.max(0,t.ttc-invPaid(iv)))));
  save();closeSheet('sheet-modal');if(R[CUR])R[CUR]();toast(iv.paid?'Facture soldée':'Acompte enregistré');
 }
@@ -1648,6 +1655,35 @@ function exGuard(d){
  if(IS_ADMIN()){return !confirm('L’exercice '+y+' est clôturé. Modifier quand même (action administrateur, tracée au journal) ?');}
  toast('Exercice '+y+' clôturé — modification impossible');return true;
 }
+let EXY=new Date().getFullYear();
+function exYFilter(d){return String(d||'').slice(0,4)===String(EXY);}
+function renderExSel(){
+ const el=document.getElementById('hd-ex');if(!el)return;
+ exEnsure();
+ const ys=[...S.exercises].sort((a,b)=>b.year-a.year);
+ if(!ys.some(e=>e.year===EXY))EXY=new Date().getFullYear();
+ el.innerHTML=ys.map(e=>`<option value="${e.year}" ${e.year===EXY?'selected':''}>Exercice ${e.year}${e.status==='closed'?' 🔒':''}</option>`).join('');
+}
+function renderDashEx(){
+ const y=EXY,e=exOf(y);
+ const txY=S.tx.filter(t=>t.date.slice(0,4)===String(y));
+ const inY=txY.filter(t=>t.type==='in').reduce((a,t)=>a+t.amount,0);
+ const outY=txY.filter(t=>t.type==='out').reduce((a,t)=>a+t.amount,0);
+ const b=exBalancesAt(y);
+ const cats={};txY.filter(t=>t.type==='out').forEach(t=>{cats[t.cat]=(cats[t.cat]||0)+t.amount;});
+ const topc=Object.keys(cats).sort((x,z)=>cats[z]-cats[x]).slice(0,6);
+ document.getElementById('v-dash').innerHTML=`
+ <div class="card" style="background:#10201B;color:#fff"><h3 style="color:#fff;margin-bottom:.3rem">Exercice ${y}${e&&e.status==='closed'?' — clôturé 🔒':''}</h3><div class="fine" style="color:rgba(255,255,255,.72)">${e&&e.status==='closed'?'Consultation en lecture seule : les écritures de cet exercice sont verrouillées.':'Consultation d’un exercice antérieur.'} Sélectionnez « Exercice ${new Date().getFullYear()} » en haut pour revenir au tableau de bord courant.</div></div>
+ <div class="kgrid">
+  <div class="kpi in"><div class="lbl">Encaissements ${y}</div><div class="val" style="font-size:1.05rem">${fmt(inY)}</div></div>
+  <div class="kpi out"><div class="lbl">Décaissements ${y}</div><div class="val" style="font-size:1.05rem">${fmt(outY)}</div></div>
+  <div class="kpi"><div class="lbl">Résultat de l’exercice</div><div class="val" style="font-size:1.05rem">${fmt(inY-outY)}</div></div>
+  <div class="kpi"><div class="lbl">Solde au 31/12/${y}</div><div class="val" style="font-size:1.05rem">${fmt(b.glob)}</div></div>
+ </div>
+ <div class="card"><h3>Soldes par compte au 31/12/${y}</h3>${S.accounts.map(a=>`<div class="row"><div class="rmain"><div class="rt">${esc(a.name)}</div></div><b>${fmt(b.acc[a.id]||0)}</b></div>`).join('')}</div>
+ ${topc.length?`<div class="card"><h3>Principales dépenses ${y}</h3>${topc.map(cc=>`<div class="row"><div class="rmain"><div class="rt">${esc(cc)}</div></div><b>${fmt(cats[cc])}</b></div>`).join('')}</div>`:''}
+ ${e&&e.stockClose&&e.stockClose.length?`<div class="card"><h3>Stock reporté à la clôture</h3><div class="fine">${e.stockClose.slice(0,15).map(p=>esc(p.name)+' : '+p.qty).join(' · ')}${e.stockClose.length>15?' · …':''}</div></div>`:''}`;
+}
 function exNextToClose(){
  exEnsure();
  const open=S.exercises.filter(e=>e.status!=='closed').map(e=>e.year).sort((a,b)=>a-b);
@@ -1689,7 +1725,7 @@ function exCloseDo(y){
  const d0=(y+1)+'-01-01';
  S.products.forEach(p=>{smov(p.id,'init',p.qty,p.cost||p.price||0,'Report exercice '+y,d0);});
  log('Exercice '+y+' clôturé — soldes reportés (RAN '+fmt(b.glob)+'), stock reporté, exercice '+(y+1)+' ouvert');
- save();closeSheet('sheet-modal');R.set();toast('Exercice '+y+' clôturé — exercice '+(y+1)+' ouvert');
+ save();closeSheet('sheet-modal');renderExSel();R.set();toast('Exercice '+y+' clôturé — exercice '+(y+1)+' ouvert');
 }
 /* ===== Historique des mouvements de stock (socle) ===== */
 function smov(pid,type,qty,pu,ref,d){
@@ -2035,13 +2071,22 @@ let CLIV={id:null,y:'',st:''};const CHC={};
 function cliView(id){CLIV={id:id,y:'',st:''};renderCliView();}
 function renderCliView(){
  const c=S.clients.find(x=>x.id===CLIV.id);if(!c)return;
- const years=[...new Set(S.invoices.filter(i=>i.clientId===c.id).map(i=>i.date.slice(0,4)).concat(S.tx.filter(t=>t.clientId===c.id).map(t=>t.date.slice(0,4))))].sort().reverse();
- let invs=S.invoices.filter(i=>i.clientId===c.id&&!i.proforma&&!i.cancelled);
- let pays=S.tx.filter(t=>t.clientId===c.id&&t.type==='in');
- if(CLIV.y){invs=invs.filter(i=>i.date.slice(0,4)===CLIV.y);pays=pays.filter(t=>t.date.slice(0,4)===CLIV.y);}
+ const allI=S.invoices.filter(i=>i.clientId===c.id&&!i.proforma&&!i.cancelled);
+ const invPays=[];
+ allI.forEach(iv=>{
+  if(Array.isArray(iv.pays)&&iv.pays.length)iv.pays.forEach(p=>invPays.push({date:p.d,amount:p.amount,acc:p.acc||null,ref:'Facture '+iv.num}));
+  else if(iv.paid)invPays.push({date:iv.date,amount:invTotals(iv).ttc,acc:null,ref:'Facture '+iv.num});
+ });
+ const freeTx=S.tx.filter(t=>t.clientId===c.id&&t.type==='in'&&!t.ivId&&String(t.desc||'').indexOf('Facture ')!==0)
+  .map(t=>({date:t.date,amount:t.amount,acc:accOf(t),ref:t.desc||'Encaissement'}));
+ const allPays=invPays.concat(freeTx);
+ const years=[...new Set(allI.map(i=>i.date.slice(0,4)).concat(allPays.map(p=>p.date.slice(0,4))))].sort().reverse();
+ let invs=allI,pays=allPays;
+ if(CLIV.y){invs=invs.filter(i=>i.date.slice(0,4)===CLIV.y);pays=pays.filter(p=>p.date.slice(0,4)===CLIV.y);}
  if(CLIV.st)invs=invs.filter(i=>invStatus(i)===CLIV.st);
  const totF=invs.reduce((a,i)=>a+invTotals(i).ttc,0);
- const totR=invs.reduce((a,i)=>a+invPaid(i),0);
+ const totIR=invs.reduce((a,i)=>a+invPaid(i),0);
+ const totR=pays.reduce((a,p)=>a+p.amount,0);
  const nUnp=invs.filter(i=>invStatus(i)==='unpaid').length,nPart=invs.filter(i=>invStatus(i)==='part').length;
  openModal(`<h2>Suivi — ${esc(cliFull(c))} <button class="close" onclick="closeSheet('sheet-modal')">×</button></h2>
  <div class="fine">${esc(c.phone||'')}${c.address?' · '+esc(c.address):''}</div>
@@ -2050,7 +2095,7 @@ function renderCliView(){
  <div class="kgrid mt">
   <div class="kpi"><div class="lbl">Total facturé</div><div class="val" style="font-size:1rem">${fmt(totF)}</div></div>
   <div class="kpi in"><div class="lbl">Total encaissé</div><div class="val" style="font-size:1rem">${fmt(totR)}</div></div>
-  <div class="kpi ${totF-totR>0?'out':''}"><div class="lbl">Solde restant dû</div><div class="val" style="font-size:1rem">${fmt(Math.max(0,totF-totR))}</div></div>
+  <div class="kpi ${totF-totIR>0?'out':''}"><div class="lbl">Solde restant dû</div><div class="val" style="font-size:1rem">${fmt(Math.max(0,totF-totIR))}</div></div>
   <div class="kpi"><div class="lbl">Impayées / partielles</div><div class="val" style="font-size:1rem">${nUnp} / ${nPart}</div></div>
  </div>
  <div class="card mt"><h3>Ventes et paiements (12 mois)</h3><canvas id="ch-cli"></canvas></div>
@@ -2058,15 +2103,14 @@ function renderCliView(){
  <div class="twrap"><table><tr><th>N°</th><th>Date</th><th>TTC</th><th>Réglé</th><th>Statut</th></tr>
  ${[...invs].sort((a,b)=>b.date<a.date?-1:1).slice(0,60).map(i=>{const t=invTotals(i),r=invPaid(i),st=invStatus(i);return `<tr><td><b>${esc(i.num)}</b></td><td>${dateLabel(i.date)}</td><td>${fmt(t.ttc)}</td><td>${fmt(r)}</td><td><span class="chip ${st==='paid'?'chip-g':st==='part'?'chip-a':'chip-r'}">${st==='paid'?'Payée':st==='part'?'Partielle':'Impayée'}</span></td></tr>`;}).join('')||'<tr><td colspan="5" class="fine">Aucune facture.</td></tr>'}</table></div>
  <h3 class="mt" style="font-size:.95rem">Encaissements (${pays.length})</h3>
- <div class="twrap"><table><tr><th>Date</th><th>Montant</th><th>Compte</th><th>Description</th></tr>
- ${[...pays].sort((a,b)=>b.date<a.date?-1:1).slice(0,60).map(t=>`<tr><td>${dateLabel(t.date)}</td><td><b>${fmt(t.amount)}</b></td><td>${esc(accName(accOf(t)))}</td><td class="fine">${esc(t.desc||'—')}</td></tr>`).join('')||'<tr><td colspan="4" class="fine">Aucun encaissement rattaché.</td></tr>'}</table></div>`);
+ <div class="twrap"><table><tr><th>Date</th><th>Montant</th><th>Compte</th><th>Référence</th></tr>
+ ${[...pays].sort((a,b)=>b.date<a.date?-1:1).slice(0,60).map(p=>`<tr><td>${dateLabel(p.date)}</td><td><b>${fmt(p.amount)}</b></td><td>${p.acc?esc(accName(p.acc)):'—'}</td><td class="fine">${esc(p.ref)}</td></tr>`).join('')||'<tr><td colspan="4" class="fine">Aucun encaissement.</td></tr>'}</table></div>`);
  if(!window.Chart)return;
  try{if(CHC.c)CHC.c.destroy();}catch(e){}
  const months=[];const now=new Date();
  for(let i=11;i>=0;i--){const d=new Date(now.getFullYear(),now.getMonth()-i,1);months.push(d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'));}
- const allI=S.invoices.filter(i=>i.clientId===c.id&&!i.proforma&&!i.cancelled),allP=S.tx.filter(t=>t.clientId===c.id&&t.type==='in');
  const dF=months.map(m=>Math.round(allI.filter(i=>i.date.slice(0,7)===m).reduce((a,i)=>a+invTotals(i).ttc,0)));
- const dP=months.map(m=>Math.round(allP.filter(t=>t.date.slice(0,7)===m).reduce((a,t)=>a+t.amount,0)));
+ const dP=months.map(m=>Math.round(allPays.filter(p=>String(p.date).slice(0,7)===m).reduce((a,p)=>a+p.amount,0)));
  CHC.c=new Chart(document.getElementById('ch-cli'),{type:'bar',data:{labels:months.map(m=>monthLabel(m).split(' ')[0]),datasets:[{label:'Facturé',data:dF,backgroundColor:'#F2B33D'},{label:'Encaissé',data:dP,backgroundColor:'#0E5A45'}]},options:{responsive:true,plugins:{legend:{position:'bottom'}}}});
 }
 function payInvoiceFromFlux(ivId,amt,d,acc,cliId){
@@ -2076,7 +2120,7 @@ function payInvoiceFromFlux(ivId,amt,d,acc,cliId){
  if(!Array.isArray(iv.pays))iv.pays=iv.paid?[{d:iv.date,amount:t.ttc}]:[];
  iv.pays.push({d:d,amount:amt,acc:acc});
  iv.paid=(invPaid(iv)>=t.ttc-0.5);
- S.tx.push({id:uid(),type:'in',amount:amt,cat:'Ventes',desc:'Facture '+iv.num+' — '+iv.client+(iv.paid?'':' (acompte)'),date:d,acc:acc,clientId:cliId||iv.clientId||null,productId:null,qty:null});
+ S.tx.push({id:uid(),type:'in',amount:amt,cat:'Ventes',desc:'Facture '+iv.num+' — '+iv.client+(iv.paid?'':' (acompte)'),date:d,acc:acc,clientId:cliId||iv.clientId||null,ivId:iv.id,productId:null,qty:null});
  log('Encaissement facture '+iv.num+' depuis les Flux ('+accName(acc)+') : '+fmt(amt)+(iv.paid?' — facture soldée':' — reste dû '+fmt(Math.max(0,t.ttc-invPaid(iv)))));
  save();R.flux();toast(iv.paid?'Facture '+iv.num+' soldée ✓':'Acompte enregistré — reste dû '+fmt(Math.max(0,t.ttc-invPaid(iv))));
 }
