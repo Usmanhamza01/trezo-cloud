@@ -231,7 +231,7 @@ body.readonly .ro-banner{display:block}
 /* ===== Trezo Cloud v1 — cœur ===== */
 const CONFIG=window.TREZO_CONFIG||{};
 const CURRENCIES=[["XOF","FCFA","Franc CFA (UEMOA)"],["XAF","FCFA","Franc CFA (CEMAC)"],["MAD","DH","Dirham marocain"],["TND","DT","Dinar tunisien"],["DZD","DA","Dinar algérien"],["EGP","E£","Livre égyptienne"],["NGN","₦","Naira nigérian"],["GHS","GH₵","Cedi ghanéen"],["KES","KSh","Shilling kényan"],["TZS","TSh","Shilling tanzanien"],["UGX","USh","Shilling ougandais"],["RWF","FRw","Franc rwandais"],["GNF","FG","Franc guinéen"],["CDF","FC","Franc congolais"],["MRU","UM","Ouguiya mauritanien"],["ZAR","R","Rand sud-africain"],["ETB","Br","Birr éthiopien"],["USD","$","Dollar US"],["EUR","€","Euro"]];
-const CAT_IN=["Ventes","Prestations de services","Remboursement","Apport","Autre"];
+const CAT_IN=["Ventes","Avance client","Prestations de services","Remboursement","Apport","Autre"];
 const CAT_OUT=["Achats fournisseurs","Loyer","Salaires","Transport","Électricité & eau","Internet & téléphone","Impôts & taxes","Entretien","Autre",'Charges fixes'];
 const DEFAULT={v:2,company:{name:"",currency:"XOF",symbol:"FCFA",logo:null},license:null,products:[],accounts:[],clients:[],charges:[],chgPays:[],exercises:[],stockMov:[],tx:[],employees:[],salPays:[],goals:[],invoices:[],journal:[],settings:{pin:null,readOnly:false,invSeq:0}};
 const LOGO='data:image/svg+xml;utf8,'+encodeURIComponent("<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect width='192' height='192' rx='42' fill='#0E5A45'/><rect x='46' y='104' width='22' height='42' rx='6' fill='#F2B33D'/><rect x='78' y='84' width='22' height='62' rx='6' fill='#7FC8A9'/><rect x='110' y='58' width='22' height='88' rx='6' fill='#FFFFFF'/><rect x='38' y='36' width='116' height='16' rx='6' fill='#FFFFFF'/></svg>");
@@ -629,7 +629,7 @@ function goalFor(m){
 }
 function txRow(x,del){
  const p=x.productId?S.products.find(q=>q.id===x.productId):null;
- return `<div class="row"><div class="dot ${x.type}">${x.type==='in'?'+':'−'}</div><div class="rmain"><div class="rt">${esc(x.desc||x.cat)}${p?' · '+esc(p.name)+(x.qty?' ×'+x.qty:''):''}</div><div class="rs">${dateLabel(x.date)} — ${esc(x.cat)} · ${esc(accName(accOf(x)))}${x.hist&&x.hist.length?' · <span style="color:var(--ambre-fonce);font-weight:700">modifié</span>':''}</div></div><div class="ramt ${x.type}">${x.type==='in'?'+':'−'} ${fmt(x.amount)}</div>${del?`<button class="btn btn-sm btn-o adm act-edit" onclick="editTx('${x.id}')">✎</button>`:''}${del&&x.type==='in'?(x.invId?`<button class="btn btn-sm btn-o" onclick="invPreview('${x.invId}')">Facture</button>`:`<button class="btn btn-sm btn-a adm" onclick="invoiceFromTx('${x.id}')">Facturer</button>`):''}${del?`<button class="btn btn-sm btn-d adm act-del" onclick="delTx('${x.id}')">✕</button>`:''}</div>`;
+ return `<div class="row"><div class="dot ${x.type}">${x.type==='in'?'+':'−'}</div><div class="rmain"><div class="rt">${esc(x.desc||x.cat)}${p?' · '+esc(p.name)+(x.qty?' ×'+x.qty:''):''}</div><div class="rs">${dateLabel(x.date)} — ${esc(x.cat)} · ${esc(accName(accOf(x)))}${x.hist&&x.hist.length?' · <span style="color:var(--ambre-fonce);font-weight:700">modifié</span>':''}</div></div><div class="ramt ${x.type}">${x.type==='in'?'+':'−'} ${fmt(x.amount)}</div>${del?`<button class="btn btn-sm btn-o adm act-edit" onclick="editTx('${x.id}')">✎</button>`:''}${del&&x.type==='in'?((x.invId||x.ivId)?`<button class="btn btn-sm btn-o" onclick="invPreview('${x.invId||x.ivId}')">Facture</button>`:(x.advance?`<span class="chip chip-a" title="Avance client — imputable sur une future facture">Avance</span>`:`<button class="btn btn-sm btn-a adm" onclick="invoiceFromTx('${x.id}')">Facturer</button>`)):''}${del?`<button class="btn btn-sm btn-d adm act-del" onclick="delTx('${x.id}')">✕</button>`:''}</div>`;
 }
 
 /* ===== Tableau de bord ===== */
@@ -686,6 +686,7 @@ R.flux=function(){
  <div class="tabs"><button class="${FLUX==='in'?'on':''}" onclick="FLUX='in';R.flux()">Encaissements</button><button class="t-out ${FLUX==='out'?'on':''}" onclick="FLUX='out';R.flux()">Décaissements</button></div>
  <div class="grid2 adm" style="margin-bottom:1rem"><button class="btn btn-o" onclick="importTpl()">Importer un template</button><button class="btn btn-o" onclick="downloadTpl()">Modèle .xlsx</button></div>
  <button class="btn btn-o btn-full adm" style="margin-bottom:1rem" onclick="xferOpen()">⇄ Transfert entre comptes</button>
+ <button class="btn btn-o btn-full" style="margin-bottom:1rem" onclick="fluxExportOpen()">⬇ Exporter les flux (Excel · CSV · PDF)</button>
  <div class="card adm">
   <h3>${FLUX==='in'?'Nouvel encaissement':'Nouveau décaissement'}</h3>
   ${FLUX==='in'&&S.products.length?`<label>Produit vendu (optionnel — met le stock à jour)</label><select id="f-prod" onchange="fluxProd()"><option value="">— Saisie libre —</option>${S.products.map(p=>`<option value="${p.id}">${esc(p.name)} (${NF.format(p.price)} ${S.company.symbol} · stock ${p.qty})</option>`).join('')}</select><div id="f-qty-wrap" style="display:none"><label>Quantité</label><input id="f-qty" type="number" min="1" value="1" oninput="fluxProd()"></div>`:''}
@@ -728,7 +729,7 @@ function addTx(){
  const amt=+document.getElementById('f-amt').value;
  if(!amt||amt<=0){toast('Entrez un montant valide');return;}
  if(exGuard(document.getElementById('f-date').value||todayStr()))return;
- let cliId=null;
+ let cliId=null,ADVFLAG=false;
  if(FLUX==='in'){
   const cliName=(document.getElementById('f-cli')||{value:''}).value.trim();
   if(!cliName){toast('Sélectionnez ou saisissez le client concerné');return;}
@@ -736,7 +737,17 @@ function addTx(){
   if(!c){c={id:uid(),name:cliName,firstname:'',phone:'',address:''};S.clients.push(c);log('Client créé automatiquement depuis un encaissement : '+cliName);toast('Nouveau client « '+cliName+' » ajouté à la base');}
   cliId=c.id;
   const ivSel=document.getElementById('f-inv');
-  if(ivSel&&ivSel.value){payInvoiceFromFlux(ivSel.value,amt,document.getElementById('f-date').value||todayStr(),document.getElementById('f-acc').value,cliId);return;}
+  const ivVal=ivSel?ivSel.value:'';
+  if(ivVal&&ivVal!=='ADV'){payInvoiceFromFlux(ivVal,amt,document.getElementById('f-date').value||todayStr(),document.getElementById('f-acc').value,cliId);return;}
+  const hasProd=!!((document.getElementById('f-prod')||{}).value);
+  const openInv=S.invoices.filter(i=>i.clientId===cliId&&!i.proforma&&!i.cancelled&&invStatus(i)!=='paid');
+  if(!hasProd&&openInv.length&&ivVal!=='ADV'){toast('Ce client a des factures non soldées — sélectionnez la facture à régler, ou choisissez « Avance client »');return;}
+  if(!hasProd){
+   ADVFLAG=true;
+   const fc=document.getElementById('f-cat');if(fc)fc.value='Avance client';
+   const fd=document.getElementById('f-desc');
+   if(fd&&!fd.value.trim())fd.value='Avance reçue — '+cliName;
+  }
  }
  const sel=document.getElementById('f-prod');
  let productId=null,qty=null;
@@ -746,7 +757,7 @@ function addTx(){
   if(p){if(qty>p.qty&&!confirm('Stock insuffisant ('+p.qty+' dispo). Enregistrer quand même ?'))return;productId=p.id;p.qty=Math.max(0,p.qty-qty);}
  }
  const desc=document.getElementById('f-desc').value.trim();
- S.tx.push({id:uid(),type:FLUX,amount:amt,cat:document.getElementById('f-cat').value,desc,date:document.getElementById('f-date').value||todayStr(),acc:document.getElementById('f-acc').value,clientId:cliId,productId,qty});
+ S.tx.push({id:uid(),type:FLUX,amount:amt,cat:document.getElementById('f-cat').value,desc,date:document.getElementById('f-date').value||todayStr(),acc:document.getElementById('f-acc').value,clientId:cliId,advance:ADVFLAG||undefined,productId,qty});
  if(productId){const pp=S.products.find(x=>x.id===productId);smov(productId,'out',qty,pp?(pp.price||0):0,'Vente'+(desc?' — '+desc:''));}
  log((FLUX==='in'?'Encaissement':'Décaissement')+' de '+fmt(amt)+(desc?' — '+desc:'')+(productId?' (stock mis à jour)':''));
  save();R.flux();toast('Opération enregistrée');
@@ -1138,6 +1149,8 @@ function renderStockDash(){
  const rank=Object.keys(sold).map(pid=>({pid:pid,name:(S.products.find(p=>p.id===pid)||{name:'(retiré)'}).name,q:sold[pid]})).sort((a,b)=>b.q-a.q);
  const top=rank.slice(0,5),flop=rank.filter(r=>S.products.some(p=>p.id===r.pid)).slice(-3).reverse();
  document.getElementById('v-stock').innerHTML=`${stkTabs()}
+ <div class="card"><div class="grid2"><div><label>Période du suivi — du</label><input id="sd-d1" type="date" value="${String(EXY)+'-01-01'}"></div><div><label>au</label><input id="sd-d2" type="date" value="${todayStr()}"></div></div>
+ <div class="grid2 mt"><button class="btn btn-o btn-sm" onclick="stockExport('xls')">⬇ Exporter le suivi (Excel)</button><button class="btn btn-o btn-sm" onclick="stockExport('pdf')">⬇ Exporter le suivi (PDF)</button></div></div>
  <div class="kgrid">
   <div class="kpi"><div class="lbl">Stock total</div><div class="val" style="font-size:1.05rem">${NF.format(totQ)} unités</div></div>
   <div class="kpi"><div class="lbl">Valeur du stock (prix de vente)</div><div class="val" style="font-size:1.05rem">${fmt(valPV)}</div></div>
@@ -1300,11 +1313,14 @@ R.fact=function(){
  <div class="tabs"><button class="${FFILT==='all'?'on':''}" onclick="setFFILT('all')">Toutes</button><button class="${FFILT==='paid'?'on':''}" onclick="setFFILT('paid')">Payées</button><button class="${FFILT==='part'?'on':''}" onclick="setFFILT('part')">Partielles</button><button class="${FFILT==='unpaid'?'on':''}" onclick="setFFILT('unpaid')">Impayées</button><button class="${FFILT==='pro'?'on':''}" onclick="setFFILT('pro')">Pro forma</button><button class="${FFILT==='cancel'?'on':''}" onclick="setFFILT('cancel')">Annulées</button></div>
  <div class="card"><h2>Suivi des factures &amp; créances clients</h2>
   <div class="grid2" style="margin:.6rem 0 .7rem"><input placeholder="Rechercher (client, n° facture…)" value="${esc(FQ)}" oninput="FQ=this.value;renderFactTable()"><input type="month" value="${FMM}" onchange="FMM=this.value;renderFactTable()"></div>
+  <div class="grid2" style="margin-bottom:.6rem"><input type="date" title="Date de facture — du" value="${FD1}" onchange="FD1=this.value;renderFactTable()"><input type="date" title="Date de facture — au" value="${FD2}" onchange="FD2=this.value;renderFactTable()"></div>
+  <div class="grid2" style="margin-bottom:.6rem"><input type="number" placeholder="Montant TTC min" value="${FMIN}" oninput="FMIN=this.value;renderFactTable()"><input type="number" placeholder="Montant TTC max" value="${FMAX}" oninput="FMAX=this.value;renderFactTable()"></div>
   <div class="grid2" style="margin-bottom:.8rem"><button class="btn btn-o btn-sm" onclick="exportFactXls()">Exporter Excel</button><button class="btn btn-o btn-sm" onclick="exportFactPdf()">Exporter PDF</button></div>
   <div id="fact-tot" class="fine" style="margin-bottom:.6rem"></div>
   <div class="twrap" id="fact-table"></div></div>`;
  renderFactTable();
 };
+let FD1='',FD2='',FMIN='',FMAX='';
 function setFFILT(v){FFILT=v;R.fact();}
 function factList(){
  const q=FQ.trim().toLowerCase();
@@ -1312,6 +1328,11 @@ function factList(){
   if(!exYFilter(iv.date))return false;
   if(FFILT!=='all'&&invStatus(iv)!==FFILT)return false;
   if(FMM&&iv.date.slice(0,7)!==FMM)return false;
+  if(FD1&&iv.date<FD1)return false;
+  if(FD2&&iv.date>FD2)return false;
+  const _ttc=invTotals(iv).ttc;
+  if(FMIN!==''&&_ttc<+FMIN)return false;
+  if(FMAX!==''&&_ttc>+FMAX)return false;
   if(q&&(iv.client+' '+iv.num).toLowerCase().indexOf(q)<0)return false;
   return true;
  });
@@ -1398,6 +1419,8 @@ function newInvoice(){
 }
 function invoiceFromTx(txId){
  const t=S.tx.find(x=>x.id===txId);if(!t)return;
+ if(t.ivId||t.invId){toast('Cet encaissement est déjà rattaché à une facture — pas de double facturation possible');return;}
+ if(t.advance){toast('Une avance ne se refacture pas — elle s’impute lors du règlement d’une future facture');return;}
  const p=t.productId?S.products.find(q=>q.id===t.productId):null;
  const qty=t.qty||1;
  INV_FROM_TX=txId;INV_DATE=t.date;
@@ -1469,6 +1492,7 @@ function invPayOpen(id){
  const t=invTotals(iv),reg=invPaid(iv),sol=Math.max(0,t.ttc-reg);
  openModal(`<h2>Encaisser — ${esc(iv.num)} <button class="close" onclick="closeSheet('sheet-modal')">×</button></h2>
  <p class="fine">Client : <b>${esc(iv.client)}</b><br>Total TTC : <b>${fmt(t.ttc)}</b> · Déjà réglé : <b>${fmt(reg)}</b> · Reste dû : <b>${fmt(sol)}</b></p>
+ ${(iv.clientId&&advBalance(iv.clientId)>0)?`<div class="fine" style="background:#F7F3EC;border-radius:10px;padding:.5rem .7rem;margin:.4rem 0">💰 Avance disponible pour ce client : <b>${fmt(advBalance(iv.clientId))}</b></div><label>Source du règlement</label><select id="ip-src"><option value="acc">Nouveau paiement (compte ci-dessous)</option><option value="adv">Imputer l’avance client</option></select>`:''}
  <label>Montant encaissé (${S.company.symbol}) — acompte ou solde</label><input id="ip-amt" type="number" min="1" value="${sol}">
  <label>Date</label><input id="ip-date" type="date" value="${todayStr()}">
  <label>Mode d’encaissement (obligatoire)</label><select id="ip-acc"><option value="">— Choisir : Espèces, Wave, Orange Money… —</option>${S.accounts.map(a=>`<option value="${a.id}">${esc(a.name)}</option>`).join('')}</select>
@@ -1480,14 +1504,31 @@ function invPayDo(id){
  const amt=+document.getElementById('ip-amt').value;
  const d=document.getElementById('ip-date').value||todayStr();
  if(exGuard(d))return;
+ const src=((document.getElementById('ip-src')||{}).value)||'acc';
  const pacc=document.getElementById('ip-acc').value;
- if(!pacc){toast('Choisissez le mode d’encaissement');return;}
+ if(src!=='adv'&&!pacc){toast('Choisissez le mode d’encaissement');return;}
  if(!amt||amt<=0){toast('Montant invalide');return;}
  if(amt>sol+0.5){toast('Le montant dépasse le reste dû ('+fmt(sol)+')');return;}
  iv.pays=Array.isArray(iv.pays)?iv.pays:(iv.paid?[{d:iv.date,amount:t.ttc}]:[]);
- iv.pays.push({d:d,amount:amt});
- iv.paid=invPaid(iv)>=t.ttc-0.5;
- S.tx.push({id:uid(),type:'in',amount:amt,cat:'Ventes',desc:'Facture '+iv.num+' — '+iv.client+(iv.paid?'':' (acompte)'),date:d,acc:pacc,clientId:iv.clientId||null,ivId:iv.id,productId:null,qty:null});
+ if(src==='adv'){
+  const bal=advBalance(iv.clientId);
+  if(amt>bal+0.5){toast('Avance disponible insuffisante ('+fmt(bal)+')');return;}
+  let rest=amt;
+  S.tx.filter(x=>x.advance&&x.type==='in'&&x.clientId===iv.clientId).sort((a,b)=>a.date<b.date?-1:1).forEach(x=>{
+   if(rest<=0)return;
+   const dispo=x.amount-(x.advUsed||0);
+   if(dispo<=0)return;
+   const take=Math.min(dispo,rest);
+   x.advUsed=(x.advUsed||0)+take;rest-=take;
+  });
+  iv.pays.push({d:d,amount:amt,adv:true});
+  iv.paid=invPaid(iv)>=t.ttc-0.5;
+  log('Avance client imputée sur la facture '+iv.num+' : '+fmt(amt)+(iv.paid?' — facture soldée':''));
+ }else{
+  iv.pays.push({d:d,amount:amt,acc:pacc});
+  iv.paid=invPaid(iv)>=t.ttc-0.5;
+  S.tx.push({id:uid(),type:'in',amount:amt,cat:'Ventes',desc:'Facture '+iv.num+' — '+iv.client+(iv.paid?'':' (acompte)'),date:d,acc:pacc,clientId:iv.clientId||null,ivId:iv.id,productId:null,qty:null});
+ }
  log('Encaissement facture '+iv.num+' ('+accName(pacc)+') : '+fmt(amt)+(iv.paid?' — facture soldée':' — reste dû '+fmt(Math.max(0,t.ttc-invPaid(iv)))));
  save();closeSheet('sheet-modal');if(R[CUR])R[CUR]();toast(iv.paid?'Facture soldée':'Acompte enregistré');
 }
@@ -1602,7 +1643,7 @@ R.set=function(){
  <div class="card"><h2>Exercices comptables</h2>
   <p class="fine">Chaque exercice couvre l’année civile (01/01 → 31/12). La clôture verrouille définitivement les écritures de l’année, calcule les soldes de clôture, reporte le stock en solde initial et ouvre l’exercice suivant.</p>
   ${exListHtml()}
-  ${IS_ADMIN()?`<button class="btn btn-p btn-full mt adm" onclick="exCloseOpen()">Clôturer l’exercice ${exNextToClose()}</button>`:''}
+  ${IS_ADMIN()?`<div class="grid2 mt adm"><button class="btn btn-o btn-sm" onclick="exCreatePrev()">+ Exercice antérieur</button><button class="btn btn-o btn-sm" onclick="exCreateNext()">+ Exercice suivant</button></div><button class="btn btn-p btn-full mt adm" onclick="exCloseOpen()">Clôturer l’exercice ${exNextToClose()}</button>`:''}
  </div>
  <div class="card"><h2>Comptes &amp; modes d’encaissement</h2>
   <p class="fine">Caisse, banque, mobile money… Chaque flux est rattaché à un compte : vous savez toujours où se trouve l’argent.</p>
@@ -1620,7 +1661,7 @@ R.set=function(){
   <label class="mt adm" style="display:block;margin-top:1rem"><span class="btn btn-o btn-full" style="display:flex">Importer une sauvegarde (migration)</span><input type="file" accept=".json,application/json" style="display:none" onchange="restore(this)"></label>
   <p class="fine mt">La sauvegarde cloud est automatique. L’archive JSON sert de copie personnelle et permet de migrer les données d’une installation Trezo Classique vers le cloud.</p>
   <button class="btn btn-d btn-full mt adm act-del" onclick="resetAll()">Vider les données de l’entreprise</button></div>
- <p class="fine" style="text-align:center;margin:.4rem 0 1.2rem">Trezo Cloud v3.0 — édition multi-utilisateurs</p>`;
+ <p class="fine" style="text-align:center;margin:.4rem 0 1.2rem">Trezo Cloud v3.1 — édition multi-utilisateurs</p>`;
  if(MYROLE==='owner')loadMembers();
 };
 function setLogo(inp){const f=inp.files[0];if(!f)return;resizeImg(f,url=>{S.company.logo=url;document.getElementById('s-logo-prev').src=url;save();renderHeader();toast('Logo mis à jour');});}
@@ -1726,6 +1767,27 @@ function exCloseDo(y){
  S.products.forEach(p=>{smov(p.id,'init',p.qty,p.cost||p.price||0,'Report exercice '+y,d0);});
  log('Exercice '+y+' clôturé — soldes reportés (RAN '+fmt(b.glob)+'), stock reporté, exercice '+(y+1)+' ouvert');
  save();closeSheet('sheet-modal');renderExSel();R.set();toast('Exercice '+y+' clôturé — exercice '+(y+1)+' ouvert');
+}
+function exCreatePrev(){
+ exEnsure();
+ const min=Math.min.apply(null,S.exercises.map(e=>e.year));
+ const y=+prompt('Année de l’exercice antérieur à créer (saisie de données historiques, import de soldes, corrections) :',min-1);
+ if(!y)return;
+ if(y<2000||y>2100){toast('Année invalide');return;}
+ if(exOf(y)){toast('L’exercice '+y+' existe déjà');return;}
+ if(y>new Date().getFullYear()){toast('Pour une année future, utilisez « + Exercice suivant »');return;}
+ S.exercises.push({year:y,status:'open'});
+ log('Exercice antérieur créé : '+y);
+ save();renderExSel();R.set();toast('Exercice '+y+' créé — sélectionnez-le en haut de l’écran pour y saisir les données');
+}
+function exCreateNext(){
+ exEnsure();
+ const max=Math.max.apply(null,S.exercises.map(e=>e.year));
+ const y=max+1;
+ if(exOf(y)){toast('L’exercice '+y+' existe déjà');return;}
+ S.exercises.push({year:y,status:'open'});
+ log('Exercice '+y+' ouvert par anticipation');
+ save();renderExSel();R.set();toast('Exercice '+y+' ouvert par anticipation — la clôture de '+max+' y reportera automatiquement les soldes (RAN) et le stock');
 }
 /* ===== Historique des mouvements de stock (socle) ===== */
 function smov(pid,type,qty,pu,ref,d){
@@ -2066,32 +2128,146 @@ function invPrint(id){
 
 /* ===== Base de données clients ===== */
 let CLIQ='';
+/* ===== Export des flux ===== */
+function fluxExportOpen(){
+ openModal(`<h2>Exporter les flux <button class="close" onclick="closeSheet('sheet-modal')">×</button></h2>
+ <div class="grid2"><div><label>Du</label><input id="fx-d1" type="date" value="${String(EXY)+'-01-01'}"></div><div><label>Au</label><input id="fx-d2" type="date" value="${todayStr()}"></div></div>
+ <div class="grid2"><div><label>Type</label><select id="fx-t"><option value="">Encaissements + décaissements</option><option value="in">Encaissements</option><option value="out">Décaissements</option></select></div>
+ <div><label>Compte / mode de paiement</label><select id="fx-a"><option value="">Tous</option>${S.accounts.map(a=>`<option value="${a.id}">${esc(a.name)}</option>`).join('')}</select></div></div>
+ <label>Client</label><select id="fx-c"><option value="">Tous</option>${[...S.clients].sort((a,b)=>cliFull(a).localeCompare(cliFull(b))).map(cc=>`<option value="${cc.id}">${esc(cliFull(cc))}</option>`).join('')}</select>
+ <div class="grid2 mt"><button class="btn btn-p btn-sm" onclick="fluxExport('xls')">Excel</button><button class="btn btn-o btn-sm" onclick="fluxExport('csv')">CSV</button></div>
+ <button class="btn btn-o btn-full mt" onclick="fluxExport('pdf')">PDF</button>`);
+}
+function fluxExportRows(){
+ const d1=document.getElementById('fx-d1').value,d2=document.getElementById('fx-d2').value;
+ const ft=document.getElementById('fx-t').value,fa=document.getElementById('fx-a').value,fc=document.getElementById('fx-c').value;
+ return S.tx.filter(x=>{
+  if(d1&&x.date<d1)return false;
+  if(d2&&x.date>d2)return false;
+  if(ft&&x.type!==ft)return false;
+  if(fa&&accOf(x)!==fa)return false;
+  if(fc&&x.clientId!==fc)return false;
+  return true;
+ }).sort((a,b)=>a.date<b.date?-1:1).map(x=>{
+  const cc=x.clientId?S.clients.find(q=>q.id===x.clientId):null;
+  return{'Date':x.date,'Type':x.type==='in'?'Encaissement':'Décaissement','Catégorie':x.cat,'Description':x.desc||'','Client':cc?cliFull(cc):'','Compte':accName(accOf(x)),'Montant':x.type==='in'?x.amount:-x.amount};
+ });
+}
+function fluxExport(fmt){
+ const rows=fluxExportRows();
+ if(!rows.length){toast('Aucune opération pour ces filtres');return;}
+ if(fmt==='xls'){
+  if(!window.XLSX){toast('Module Excel non chargé — connectez-vous une fois à Internet');return;}
+  const wb=XLSX.utils.book_new();
+  const ws=XLSX.utils.json_to_sheet(rows);
+  ws['!cols']=[{wch:11},{wch:13},{wch:18},{wch:30},{wch:20},{wch:14},{wch:13}];
+  XLSX.utils.book_append_sheet(wb,ws,'Flux');
+  XLSX.writeFile(wb,'flux-trezo.xlsx');
+ }else if(fmt==='csv'){
+  const cols=Object.keys(rows[0]);
+  const csv='\uFEFF'+cols.join(';')+'\n'+rows.map(r=>cols.map(k=>String(r[k]).replace(/;/g,',').replace(/\n/g,' ')).join(';')).join('\n');
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
+  a.download='flux-trezo.csv';a.click();URL.revokeObjectURL(a.href);
+ }else{
+  if(!window.jspdf){toast('Module PDF non chargé — connectez-vous une fois à Internet');return;}
+  const doc=new window.jspdf.jsPDF({orientation:'landscape'});
+  if(typeof doc.autoTable!=='function'){toast('Module tableaux PDF non chargé — rechargez la page');return;}
+  const d1=document.getElementById('fx-d1').value,d2=document.getElementById('fx-d2').value;
+  doc.setFontSize(14);doc.text('Flux de trésorerie — '+S.company.name,14,14);
+  doc.setFontSize(9);doc.text('Période : '+(d1||'début')+' → '+(d2||'aujourd’hui'),14,20);
+  const tot=rows.reduce((a,r)=>a+r['Montant'],0);
+  doc.autoTable({startY:26,head:[['Date','Type','Catégorie','Description','Client','Compte','Montant']],
+   body:rows.map(r=>[r['Date'],r['Type'],r['Catégorie'],r['Description'],r['Client'],r['Compte'],pdfN(r['Montant'])]),
+   styles:{fontSize:8},headStyles:{fillColor:[14,90,69]}});
+  doc.setFontSize(10);doc.text('Solde net de la sélection : '+pdfN(tot)+' '+S.company.symbol,14,doc.lastAutoTable.finalY+8);
+  doc.save('flux-trezo.pdf');
+ }
+ toast('Export généré');
+}
+/* ===== Export du suivi des stocks ===== */
+function stockExportRows(){
+ const d1=document.getElementById('sd-d1').value,d2=document.getElementById('sd-d2').value||todayStr();
+ return S.products.map(p=>{
+  let qEnd=p.qty;
+  S.stockMov.forEach(m=>{if(m.pid===p.id&&m.d>d2)qEnd-=(m.type==='out'?-1:1)*m.qty;});
+  qEnd=Math.max(0,qEnd);
+  let qStart=qEnd,ein=0,eout=0;
+  S.stockMov.forEach(m=>{
+   if(m.pid!==p.id||m.d>d2)return;
+   if(d1&&m.d<d1)return;
+   if(m.type==='out'){eout+=m.qty;qStart+=m.qty;}
+   else{ein+=m.qty;qStart-=m.qty;}
+  });
+  qStart=Math.max(0,qStart);
+  return{'Produit':p.name,'Stock initial':qStart,'Entrées':ein,'Sorties':eout,'Stock final':qEnd,'Valeur du stock':Math.round(qEnd*(p.cost||p.price||0))};
+ });
+}
+function stockExport(fmt){
+ const d1=document.getElementById('sd-d1').value,d2=document.getElementById('sd-d2').value||todayStr();
+ const rows=stockExportRows();
+ if(!rows.length){toast('Aucun produit');return;}
+ if(fmt==='xls'){
+  if(!window.XLSX){toast('Module Excel non chargé — connectez-vous une fois à Internet');return;}
+  const wb=XLSX.utils.book_new();
+  const ws=XLSX.utils.json_to_sheet([{'Produit':'PÉRIODE','Stock initial':'','Entrées':d1||'début','Sorties':'→','Stock final':d2,'Valeur du stock':''}].concat(rows));
+  ws['!cols']=[{wch:28},{wch:12},{wch:10},{wch:10},{wch:11},{wch:15}];
+  XLSX.utils.book_append_sheet(wb,ws,'Suivi stock');
+  XLSX.writeFile(wb,'suivi-stock-trezo.xlsx');
+ }else{
+  if(!window.jspdf){toast('Module PDF non chargé — connectez-vous une fois à Internet');return;}
+  const doc=new window.jspdf.jsPDF();
+  if(typeof doc.autoTable!=='function'){toast('Module tableaux PDF non chargé — rechargez la page');return;}
+  doc.setFontSize(14);doc.text('Suivi des stocks — '+S.company.name,14,14);
+  doc.setFontSize(9);doc.text('Période : '+(d1||'début')+' → '+d2,14,20);
+  const totV=rows.reduce((a,r)=>a+r['Valeur du stock'],0);
+  doc.autoTable({startY:26,head:[['Produit','Stock initial','Entrées','Sorties','Stock final','Valeur']],
+   body:rows.map(r=>[r['Produit'],r['Stock initial'],r['Entrées'],r['Sorties'],r['Stock final'],pdfN(r['Valeur du stock'])]),
+   styles:{fontSize:8},headStyles:{fillColor:[14,90,69]}});
+  doc.setFontSize(10);doc.text('Valeur totale du stock : '+pdfN(totV)+' '+S.company.symbol,14,doc.lastAutoTable.finalY+8);
+  doc.save('suivi-stock-trezo.pdf');
+ }
+ toast('Export généré');
+}
 /* ===== Fiche client : suivi ===== */
 let CLIV={id:null,y:'',st:''};const CHC={};
-function cliView(id){CLIV={id:id,y:'',st:''};renderCliView();}
+function cliView(id){CLIV={id:id,y:'',st:'',d1:'',d2:''};renderCliView();}
 function renderCliView(){
  const c=S.clients.find(x=>x.id===CLIV.id);if(!c)return;
  const allI=S.invoices.filter(i=>i.clientId===c.id&&!i.proforma&&!i.cancelled);
  const invPays=[];
  allI.forEach(iv=>{
-  if(Array.isArray(iv.pays)&&iv.pays.length)iv.pays.forEach(p=>invPays.push({date:p.d,amount:p.amount,acc:p.acc||null,ref:'Facture '+iv.num}));
-  else if(iv.paid)invPays.push({date:iv.date,amount:invTotals(iv).ttc,acc:null,ref:'Facture '+iv.num});
+  if(Array.isArray(iv.pays)&&iv.pays.length)iv.pays.forEach(p=>invPays.push({date:p.d,amount:p.amount,acc:p.acc||null,adv:!!p.adv,ref:'Facture '+iv.num}));
+  else if(iv.paid)invPays.push({date:iv.date,amount:invTotals(iv).ttc,acc:null,adv:false,ref:'Facture '+iv.num});
  });
  const freeTx=S.tx.filter(t=>t.clientId===c.id&&t.type==='in'&&!t.ivId&&String(t.desc||'').indexOf('Facture ')!==0)
-  .map(t=>({date:t.date,amount:t.amount,acc:accOf(t),ref:t.desc||'Encaissement'}));
+  .map(t=>({date:t.date,amount:t.amount,acc:accOf(t),adv:!!t.advance,ref:t.desc||'Encaissement'}));
  const allPays=invPays.concat(freeTx);
- const years=[...new Set(allI.map(i=>i.date.slice(0,4)).concat(allPays.map(p=>p.date.slice(0,4))))].sort().reverse();
+ const years=[...new Set(allI.map(i=>i.date.slice(0,4)).concat(allPays.map(p=>String(p.date).slice(0,4))))].sort().reverse();
  let invs=allI,pays=allPays;
- if(CLIV.y){invs=invs.filter(i=>i.date.slice(0,4)===CLIV.y);pays=pays.filter(p=>p.date.slice(0,4)===CLIV.y);}
+ if(CLIV.y){invs=invs.filter(i=>i.date.slice(0,4)===CLIV.y);pays=pays.filter(p=>String(p.date).slice(0,4)===CLIV.y);}
+ if(CLIV.d1){invs=invs.filter(i=>i.date>=CLIV.d1);pays=pays.filter(p=>p.date>=CLIV.d1);}
+ if(CLIV.d2){invs=invs.filter(i=>i.date<=CLIV.d2);pays=pays.filter(p=>p.date<=CLIV.d2);}
  if(CLIV.st)invs=invs.filter(i=>invStatus(i)===CLIV.st);
  const totF=invs.reduce((a,i)=>a+invTotals(i).ttc,0);
  const totIR=invs.reduce((a,i)=>a+invPaid(i),0);
  const totR=pays.reduce((a,p)=>a+p.amount,0);
  const nUnp=invs.filter(i=>invStatus(i)==='unpaid').length,nPart=invs.filter(i=>invStatus(i)==='part').length;
+ /* Tableau unique : une ligne par encaissement de facture, solde dégressif */
+ CLIV.rows=[];
+ [...invs].sort((a,b)=>b.date<a.date?-1:1).forEach(iv=>{
+  const t=invTotals(iv);
+  const ps=(Array.isArray(iv.pays)&&iv.pays.length)?[...iv.pays].sort((a,b)=>a.d<b.d?-1:1):(iv.paid?[{d:iv.date,amount:t.ttc,acc:null}]:[]);
+  if(!ps.length){CLIV.rows.push({num:iv.num,df:iv.date,ttc:t.ttc,de:'',me:'',mode:'',solde:t.ttc,first:true});}
+  else{let cum=0;ps.forEach((p,i)=>{cum+=p.amount;CLIV.rows.push({num:iv.num,df:iv.date,ttc:i===0?t.ttc:'',de:p.d,me:p.amount,mode:p.adv?'Avance imputée':(p.acc?accName(p.acc):'—'),solde:Math.max(0,t.ttc-cum),first:i===0});});}
+ });
+ const avances=pays.filter(p=>p.adv&&String(p.ref).indexOf('Facture ')!==0);
+ avances.forEach(p=>CLIV.rows.push({num:'Avance reçue',df:'',ttc:'',de:p.date,me:p.amount,mode:p.acc?accName(p.acc):'—',solde:'',first:true}));
  openModal(`<h2>Suivi — ${esc(cliFull(c))} <button class="close" onclick="closeSheet('sheet-modal')">×</button></h2>
- <div class="fine">${esc(c.phone||'')}${c.address?' · '+esc(c.address):''}</div>
+ <div class="fine">${esc(c.phone||'')}${c.address?' · '+esc(c.address):''}${advBalance(c.id)>0?' · <b style="color:var(--vert,#0E5A45)">Avance disponible : '+fmt(advBalance(c.id))+'</b>':''}</div>
  <div class="grid2 mt"><div><label>Exercice</label><select onchange="CLIV.y=this.value;renderCliView()"><option value="">Tous</option>${years.map(y=>`<option ${CLIV.y===y?'selected':''}>${y}</option>`).join('')}</select></div>
  <div><label>Statut des factures</label><select onchange="CLIV.st=this.value;renderCliView()"><option value="">Tous</option><option value="paid" ${CLIV.st==='paid'?'selected':''}>Payées</option><option value="part" ${CLIV.st==='part'?'selected':''}>Partielles</option><option value="unpaid" ${CLIV.st==='unpaid'?'selected':''}>Impayées</option></select></div></div>
+ <div class="grid2"><div><label>Période — du</label><input type="date" value="${CLIV.d1}" onchange="CLIV.d1=this.value;renderCliView()"></div><div><label>au</label><input type="date" value="${CLIV.d2}" onchange="CLIV.d2=this.value;renderCliView()"></div></div>
  <div class="kgrid mt">
   <div class="kpi"><div class="lbl">Total facturé</div><div class="val" style="font-size:1rem">${fmt(totF)}</div></div>
   <div class="kpi in"><div class="lbl">Total encaissé</div><div class="val" style="font-size:1rem">${fmt(totR)}</div></div>
@@ -2099,12 +2275,10 @@ function renderCliView(){
   <div class="kpi"><div class="lbl">Impayées / partielles</div><div class="val" style="font-size:1rem">${nUnp} / ${nPart}</div></div>
  </div>
  <div class="card mt"><h3>Ventes et paiements (12 mois)</h3><canvas id="ch-cli"></canvas></div>
- <h3 class="mt" style="font-size:.95rem">Factures (${invs.length})</h3>
- <div class="twrap"><table><tr><th>N°</th><th>Date</th><th>TTC</th><th>Réglé</th><th>Statut</th></tr>
- ${[...invs].sort((a,b)=>b.date<a.date?-1:1).slice(0,60).map(i=>{const t=invTotals(i),r=invPaid(i),st=invStatus(i);return `<tr><td><b>${esc(i.num)}</b></td><td>${dateLabel(i.date)}</td><td>${fmt(t.ttc)}</td><td>${fmt(r)}</td><td><span class="chip ${st==='paid'?'chip-g':st==='part'?'chip-a':'chip-r'}">${st==='paid'?'Payée':st==='part'?'Partielle':'Impayée'}</span></td></tr>`;}).join('')||'<tr><td colspan="5" class="fine">Aucune facture.</td></tr>'}</table></div>
- <h3 class="mt" style="font-size:.95rem">Encaissements (${pays.length})</h3>
- <div class="twrap"><table><tr><th>Date</th><th>Montant</th><th>Compte</th><th>Référence</th></tr>
- ${[...pays].sort((a,b)=>b.date<a.date?-1:1).slice(0,60).map(p=>`<tr><td>${dateLabel(p.date)}</td><td><b>${fmt(p.amount)}</b></td><td>${p.acc?esc(accName(p.acc)):'—'}</td><td class="fine">${esc(p.ref)}</td></tr>`).join('')||'<tr><td colspan="4" class="fine">Aucun encaissement.</td></tr>'}</table></div>`);
+ <div class="grid2 mt"><button class="btn btn-o btn-sm" onclick="cliViewExport('xls')">Exporter Excel</button><button class="btn btn-o btn-sm" onclick="cliViewExport('pdf')">Exporter PDF</button></div>
+ <h3 class="mt" style="font-size:.95rem">Suivi des factures (${CLIV.rows.length} ligne${CLIV.rows.length>1?'s':''})</h3>
+ <div class="twrap"><table><tr><th>N° facture</th><th>Date fact.</th><th>Montant TTC</th><th>Date encais.</th><th>Montant encaissé</th><th>Mode</th><th>Solde facture</th></tr>
+ ${CLIV.rows.slice(0,120).map(r=>`<tr><td>${r.first?'<b>'+esc(r.num)+'</b>':''}</td><td>${r.df?dateLabel(r.df):''}</td><td>${r.ttc!==''?fmt(r.ttc):''}</td><td>${r.de?dateLabel(r.de):'—'}</td><td>${r.me!==''?'<b>'+fmt(r.me)+'</b>':'—'}</td><td>${esc(r.mode||'—')}</td><td>${r.solde!==''?(r.solde>0?'<span style="color:var(--rouge,#C0492F);font-weight:700">'+fmt(r.solde)+'</span>':'<span class="chip chip-g">Soldée</span>'):''}</td></tr>`).join('')||'<tr><td colspan="7" class="fine">Aucune facture ni encaissement pour ce filtre.</td></tr>'}</table></div>`);
  if(!window.Chart)return;
  try{if(CHC.c)CHC.c.destroy();}catch(e){}
  const months=[];const now=new Date();
@@ -2112,6 +2286,28 @@ function renderCliView(){
  const dF=months.map(m=>Math.round(allI.filter(i=>i.date.slice(0,7)===m).reduce((a,i)=>a+invTotals(i).ttc,0)));
  const dP=months.map(m=>Math.round(allPays.filter(p=>String(p.date).slice(0,7)===m).reduce((a,p)=>a+p.amount,0)));
  CHC.c=new Chart(document.getElementById('ch-cli'),{type:'bar',data:{labels:months.map(m=>monthLabel(m).split(' ')[0]),datasets:[{label:'Facturé',data:dF,backgroundColor:'#F2B33D'},{label:'Encaissé',data:dP,backgroundColor:'#0E5A45'}]},options:{responsive:true,plugins:{legend:{position:'bottom'}}}});
+}
+function cliViewExport(fmt){
+ const c=S.clients.find(x=>x.id===CLIV.id);if(!c||!CLIV.rows)return;
+ const rows=CLIV.rows.map(r=>({'N° facture':r.num,'Date facture':r.df,'Montant TTC':r.ttc===''?'':r.ttc,'Date encaissement':r.de,'Montant encaissé':r.me===''?'':r.me,'Mode paiement':r.mode,'Solde facture':r.solde===''?'':r.solde}));
+ if(fmt==='xls'){
+  if(!window.XLSX){toast('Module Excel non chargé — connectez-vous une fois à Internet');return;}
+  const wb=XLSX.utils.book_new();
+  const ws=XLSX.utils.json_to_sheet(rows);
+  ws['!cols']=[{wch:16},{wch:12},{wch:13},{wch:14},{wch:15},{wch:15},{wch:13}];
+  XLSX.utils.book_append_sheet(wb,ws,'Suivi client');
+  XLSX.writeFile(wb,'suivi-'+stripAcc(cliFull(c)).replace(/\s+/g,'-').toLowerCase()+'.xlsx');
+ }else{
+  if(!window.jspdf){toast('Module PDF non chargé — connectez-vous une fois à Internet');return;}
+  const doc=new window.jspdf.jsPDF({orientation:'landscape'});
+  if(typeof doc.autoTable!=='function'){toast('Module tableaux PDF non chargé — rechargez la page');return;}
+  doc.setFontSize(14);doc.text('Suivi client — '+cliFull(c),14,14);
+  doc.setFontSize(9);doc.text(S.company.name+' · édité le '+new Date().toLocaleDateString('fr-FR'),14,20);
+  doc.autoTable({startY:26,head:[['N° facture','Date fact.','TTC','Date enc.','Encaissé','Mode','Solde']],
+   body:CLIV.rows.map(r=>[r.num,r.df,r.ttc===''?'':pdfN(r.ttc),r.de,r.me===''?'':pdfN(r.me),r.mode,r.solde===''?'':pdfN(r.solde)]),
+   styles:{fontSize:8},headStyles:{fillColor:[14,90,69]}});
+  doc.save('suivi-'+stripAcc(cliFull(c)).replace(/\s+/g,'-').toLowerCase()+'.pdf');
+ }
 }
 function payInvoiceFromFlux(ivId,amt,d,acc,cliId){
  const iv=S.invoices.find(x=>x.id===ivId);if(!iv)return;
@@ -2128,10 +2324,10 @@ function fluxCliMatch(){
  const v=document.getElementById('f-cli').value.trim().toLowerCase();
  const h=document.getElementById('f-cli-hint'),w=document.getElementById('f-inv-wrap');
  const c=S.clients.find(x=>cliFull(x).toLowerCase()===v);
- if(!c){h.textContent=v?'Nouveau client — il sera créé automatiquement':'';w.innerHTML='';return;}
+ if(!c){h.textContent=v?'Nouveau client — il sera créé automatiquement (encaissement sans facture = avance reçue, imputable plus tard)':'';w.innerHTML='';return;}
  h.textContent='Client trouvé dans la base ✓';
  const open=S.invoices.filter(i=>i.clientId===c.id&&!i.proforma&&!i.cancelled&&invStatus(i)!=='paid');
- w.innerHTML=open.length?`<label>Règlement d’une facture ? (évite les doubles encaissements)</label><select id="f-inv"><option value="">Non — encaissement libre</option>${open.map(iv=>{const t=invTotals(iv),sol=Math.max(0,t.ttc-invPaid(iv));return `<option value="${iv.id}">${esc(iv.num)} — reste dû ${fmt(sol)}</option>`;}).join('')}</select>`:'';
+ w.innerHTML=open.length?`<label>Facture à régler (obligatoire — évite les doubles encaissements)</label><select id="f-inv"><option value="">— Sélectionnez —</option>${open.map(iv=>{const t=invTotals(iv),sol=Math.max(0,t.ttc-invPaid(iv));return `<option value="${iv.id}">${esc(iv.num)} — reste dû ${fmt(sol)}</option>`;}).join('')}<option value="ADV">Avance client (paiement anticipé, sans facture)</option></select>`:`<div class="fine" style="background:#F7F3EC;border-radius:10px;padding:.5rem .7rem;margin:.3rem 0">Aucune facture en attente — cet encaissement sera enregistré comme <b>Avance reçue</b>, imputable sur une future facture.</div>`;
 }
 function cliFull(c){return (c.name+(c.firstname?' '+c.firstname:'')).trim();}
 R.cli=function(){
@@ -2143,13 +2339,60 @@ R.cli=function(){
   <div class="grid2 mt"><button class="btn btn-o btn-sm" onclick="cliImport()">Importer Excel / CSV</button><button class="btn btn-o btn-sm" onclick="cliExport()">Exporter Excel</button></div></div>
  <div class="card"><h2>Base clients <span id="cli-count" class="fine"></span></h2>
   <input placeholder="Rechercher (nom, téléphone…)" value="${esc(CLIQ)}" oninput="CLIQ=this.value;renderCliList()" style="margin:.5rem 0 .8rem">
+  <div class="grid2" style="margin-bottom:.6rem"><select onchange="CLIF_ST=this.value;renderCliList()"><option value="">Tous les clients</option><option value="due" ${CLIF_ST==='due'?'selected':''}>Avec solde restant dû</option><option value="ok" ${CLIF_ST==='ok'?'selected':''}>Soldés</option><option value="none" ${CLIF_ST==='none'?'selected':''}>Sans facture</option></select>
+  <div class="grid2" style="gap:.4rem"><input type="date" title="Activité — du" value="${CLIF_D1}" onchange="CLIF_D1=this.value;renderCliList()"><input type="date" title="Activité — au" value="${CLIF_D2}" onchange="CLIF_D2=this.value;renderCliList()"></div></div>
+  <div class="grid2" style="margin-bottom:.8rem"><button class="btn btn-o btn-sm" onclick="cliExportF('xls')">⬇ Liste filtrée (Excel)</button><button class="btn btn-o btn-sm" onclick="cliExportF('pdf')">⬇ Liste filtrée (PDF)</button></div>
   <div id="cli-list"></div></div>`;
  renderCliList();
 };
+let CLIF_ST='',CLIF_D1='',CLIF_D2='';
+function cliStats(c){
+ const inv=S.invoices.filter(iv=>iv.clientId===c.id&&!iv.proforma&&!iv.cancelled);
+ const tot=inv.reduce((a,iv)=>a+invTotals(iv).ttc,0);
+ const reg=inv.reduce((a,iv)=>a+invPaid(iv),0);
+ return{nb:inv.length,tot:tot,reg:reg,solde:Math.max(0,tot-reg)};
+}
+function cliListFiltered(){
+ const q=CLIQ.trim().toLowerCase();
+ return S.clients.filter(c=>{
+  if(q&&(cliFull(c)+' '+(c.phone||'')).toLowerCase().indexOf(q)<0)return false;
+  const st=cliStats(c);
+  if(CLIF_ST==='due'&&!(st.solde>0))return false;
+  if(CLIF_ST==='ok'&&!(st.nb>0&&st.solde<=0))return false;
+  if(CLIF_ST==='none'&&st.nb>0)return false;
+  if(CLIF_D1||CLIF_D2){
+   const act=S.invoices.some(iv=>iv.clientId===c.id&&(!CLIF_D1||iv.date>=CLIF_D1)&&(!CLIF_D2||iv.date<=CLIF_D2))||S.tx.some(t=>t.clientId===c.id&&(!CLIF_D1||t.date>=CLIF_D1)&&(!CLIF_D2||t.date<=CLIF_D2));
+   if(!act)return false;
+  }
+  return true;
+ }).sort((a,b)=>cliFull(a).localeCompare(cliFull(b)));
+}
+function cliExportF(fmt){
+ const list=cliListFiltered();
+ if(!list.length){toast('Aucun client pour ces filtres');return;}
+ const rows=list.map(c=>{const st=cliStats(c);return{'Client':cliFull(c),'Téléphone':c.phone||'','Adresse':c.address||'','Nb factures':st.nb,'Total facturé':st.tot,'Total encaissé':st.reg,'Solde restant dû':st.solde,'Avance disponible':advBalance(c.id)};});
+ if(fmt==='xls'){
+  if(!window.XLSX){toast('Module Excel non chargé — connectez-vous une fois à Internet');return;}
+  const wb=XLSX.utils.book_new();
+  const ws=XLSX.utils.json_to_sheet(rows);
+  ws['!cols']=[{wch:26},{wch:14},{wch:22},{wch:10},{wch:13},{wch:14},{wch:14},{wch:14}];
+  XLSX.utils.book_append_sheet(wb,ws,'Clients');
+  XLSX.writeFile(wb,'clients-trezo.xlsx');
+ }else{
+  if(!window.jspdf){toast('Module PDF non chargé — connectez-vous une fois à Internet');return;}
+  const doc=new window.jspdf.jsPDF({orientation:'landscape'});
+  if(typeof doc.autoTable!=='function'){toast('Module tableaux PDF non chargé — rechargez la page');return;}
+  doc.setFontSize(14);doc.text('Base clients — '+S.company.name,14,14);
+  doc.autoTable({startY:22,head:[['Client','Téléphone','Nb fact.','Facturé','Encaissé','Solde dû','Avance']],
+   body:rows.map(r=>[r['Client'],r['Téléphone'],r['Nb factures'],pdfN(r['Total facturé']),pdfN(r['Total encaissé']),pdfN(r['Solde restant dû']),pdfN(r['Avance disponible'])]),
+   styles:{fontSize:8},headStyles:{fillColor:[14,90,69]}});
+  doc.save('clients-trezo.pdf');
+ }
+ toast('Export généré');
+}
 function renderCliList(){
  const el=document.getElementById('cli-list');if(!el)return;
- const q=CLIQ.trim().toLowerCase();
- const list=S.clients.filter(c=>!q||(cliFull(c)+' '+(c.phone||'')).toLowerCase().indexOf(q)>=0).sort((a,b)=>cliFull(a).localeCompare(cliFull(b)));
+ const list=cliListFiltered();
  document.getElementById('cli-count').textContent='('+list.length+')';
  el.innerHTML=list.map(c=>{
   const nb=S.invoices.filter(iv=>iv.clientId===c.id).length;
