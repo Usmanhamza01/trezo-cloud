@@ -175,7 +175,8 @@ body.readonly .ro-banner{display:block}
 .inv-tot .ttc{font-weight:800;font-size:1.05rem;margin-top:.25rem;color:var(--vert)}
 .inv-foot{margin-top:1.2rem;font-size:.7rem;color:#999}
 #print-area{display:none}
-#hd-ex{max-width:170px;font-weight:800;cursor:pointer}
+#hd-ex{max-width:180px;font-weight:800;cursor:pointer}
+#hd-ex option{color:#1C2420;background:#fff;font-weight:700}
 .thsort{cursor:pointer;user-select:none;white-space:nowrap}
 .thsort:hover{color:var(--vert)}
 @media print{body>*{display:none !important}#print-area{display:block !important}#print-area .inv-doc{box-shadow:none;border-radius:0;padding:0}}
@@ -705,7 +706,7 @@ R.flux=function(){
  <div class="card adm">
   <h3>${FLUX==='in'?'Nouvel encaissement':'Nouveau décaissement'}</h3>
   ${FLUX==='in'&&S.products.length?`<label>Produit vendu (optionnel — met le stock à jour)</label><select id="f-prod" onchange="fluxProd()"><option value="">— Saisie libre —</option>${S.products.map(p=>`<option value="${p.id}">${esc(p.name)} (${NF.format(p.price)} ${S.company.symbol} · stock ${p.qty})</option>`).join('')}</select><div id="f-qty-wrap" style="display:none"><label>Quantité</label><input id="f-qty" type="number" min="1" value="1" oninput="fluxProd()"></div>`:''}
-  <div class="grid2"><div><label>Montant (${S.company.symbol})</label><input id="f-amt" type="number" min="0" inputmode="numeric"></div><div><label>Date</label><input id="f-date" type="date" value="${todayStr()}"></div></div>
+  <div class="grid2"><div><label>Montant (${S.company.symbol})</label><input id="f-amt" type="number" min="0" inputmode="numeric"></div><div><label>Date</label><input id="f-date" type="date" value="${defDate()}"></div></div>
   <label>Catégorie</label><select id="f-cat">${cats.map(c=>`<option>${c}</option>`).join('')}</select>
   <label>Compte / mode</label><select id="f-acc">${S.accounts.map(a=>`<option value="${a.id}">${esc(a.name)}</option>`).join('')}</select>
   ${FLUX==='in'?`<label>Client (obligatoire — créé automatiquement s’il n’existe pas)</label><input id="f-cli" list="dl-cli2" placeholder="Nom du client" oninput="fluxCliMatch()"><datalist id="dl-cli2">${S.clients.map(c=>`<option value="${esc(cliFull(c))}">`).join('')}</datalist><div id="f-cli-hint" class="fine"></div><div id="f-inv-wrap"></div>`:''}
@@ -849,7 +850,7 @@ function xferOpen(){
  openModal(`<h2>Transfert entre comptes <button class="close" onclick="closeSheet('sheet-modal')">×</button></h2>
  <p class="fine">Déplace de l’argent d’une poche à l’autre (dépôt d’espèces en banque, retrait Wave vers la caisse…) sans modifier vos encaissements ni votre résultat.</p>
  <div class="grid2"><div><label>Depuis</label><select id="xf-from">${S.accounts.map(a=>`<option value="${a.id}">${esc(a.name)} (${fmt(accBal(a.id))})</option>`).join('')}</select></div><div><label>Vers</label><select id="xf-to">${S.accounts.map((a,i)=>`<option value="${a.id}" ${i===1?'selected':''}>${esc(a.name)}</option>`).join('')}</select></div></div>
- <div class="grid2"><div><label>Montant (${S.company.symbol})</label><input id="xf-amt" type="number" min="1"></div><div><label>Date</label><input id="xf-date" type="date" value="${todayStr()}"></div></div>
+ <div class="grid2"><div><label>Montant (${S.company.symbol})</label><input id="xf-amt" type="number" min="1"></div><div><label>Date</label><input id="xf-date" type="date" value="${defDate()}"></div></div>
  <button class="btn btn-p btn-full mt" onclick="xferDo()">Effectuer le transfert</button>`);
 }
 function xferDo(){
@@ -979,7 +980,7 @@ function payCharge(id){
  const c=S.charges.find(x=>x.id===id);if(!c)return;
  openModal(`<h2>Payer — ${esc(c.label)} <button class="close" onclick="closeSheet('sheet-modal')">×</button></h2>
  <p class="fine">Période : <b>${monthLabel(chgPeriodKey(c))}</b> (${perLbl(c.per).toLowerCase()})</p>
- <div class="grid2"><div><label>Montant (${S.company.symbol})</label><input id="cp-amt" type="number" value="${c.amount}"></div><div><label>Date</label><input id="cp-date" type="date" value="${todayStr()}"></div></div>
+ <div class="grid2"><div><label>Montant (${S.company.symbol})</label><input id="cp-amt" type="number" value="${c.amount}"></div><div><label>Date</label><input id="cp-date" type="date" value="${defDate()}"></div></div>
  <label>Compte / mode de paiement</label><select id="cp-acc">${S.accounts.map(a=>`<option value="${a.id}">${esc(a.name)}</option>`).join('')}</select>
  <button class="btn btn-p btn-full mt" onclick="payChargeDo('${c.id}')">Enregistrer le paiement</button>`);
 }
@@ -1166,11 +1167,14 @@ function renderStockDash(){
  const valPA=S.products.reduce((a,p)=>a+p.qty*(p.cost||p.price||0),0);
  const rupt=S.products.filter(p=>p.qty<=0);
  const proche=S.products.filter(p=>p.qty>0&&p.alert>0&&p.qty<=p.alert);
- const mvM=S.stockMov.filter(m=>m.d.slice(0,7)===mois);
- const nbIn=mvM.filter(m=>m.type!=='out').reduce((a,m)=>a+m.qty,0);
- const nbOut=mvM.filter(m=>m.type==='out').reduce((a,m)=>a+m.qty,0);
+ const _cy=new Date().getFullYear();const moisEff=(EXY===_cy)?mois:(String(EXY)+'-12');
+ const mvM=S.stockMov.filter(m=>m.d.slice(0,7)===moisEff);
+ const mvExo=S.stockMov.filter(m=>m.d.slice(0,4)===String(EXY));
+ const _cy2=new Date().getFullYear();const mvKPI=(EXY===_cy2)?mvM:mvExo;
+ const nbIn=mvKPI.filter(m=>m.type!=='out').reduce((a,m)=>a+m.qty,0);
+ const nbOut=mvKPI.filter(m=>m.type==='out').reduce((a,m)=>a+m.qty,0);
  const sold={};
- S.stockMov.filter(m=>m.type==='out').forEach(m=>{sold[m.pid]=(sold[m.pid]||0)+m.qty;});
+ mvExo.filter(m=>m.type==='out').forEach(m=>{sold[m.pid]=(sold[m.pid]||0)+m.qty;});
  S.products.forEach(p=>{if(!(p.id in sold))sold[p.id]=0;});
  const rank=Object.keys(sold).map(pid=>({pid:pid,name:(S.products.find(p=>p.id===pid)||{name:'(retiré)'}).name,q:sold[pid]})).sort((a,b)=>b.q-a.q);
  const top=rank.slice(0,5),flop=rank.filter(r=>S.products.some(p=>p.id===r.pid)).slice(-3).reverse();
@@ -1182,8 +1186,8 @@ function renderStockDash(){
   <div class="kpi"><div class="lbl">Valeur du stock (prix de vente)</div><div class="val" style="font-size:1.05rem">${fmt(valPV)}</div></div>
   <div class="kpi"><div class="lbl">Valeur du stock (prix d’achat)</div><div class="val" style="font-size:1.05rem">${fmt(valPA)}</div></div>
   <div class="kpi ${rupt.length?'out':''}"><div class="lbl">Ruptures / proches</div><div class="val" style="font-size:1.05rem">${rupt.length} / ${proche.length}</div></div>
-  <div class="kpi in"><div class="lbl">Entrées du mois</div><div class="val" style="font-size:1.05rem">${NF.format(nbIn)}</div></div>
-  <div class="kpi out"><div class="lbl">Sorties du mois</div><div class="val" style="font-size:1.05rem">${NF.format(nbOut)}</div></div>
+  <div class="kpi in"><div class="lbl">Entrées ${EXY===_cy?'du mois':EXY}</div><div class="val" style="font-size:1.05rem">${NF.format(nbIn)}</div></div>
+  <div class="kpi out"><div class="lbl">Sorties ${EXY===_cy?'du mois':EXY}</div><div class="val" style="font-size:1.05rem">${NF.format(nbOut)}</div></div>
  </div>
  ${rupt.length?`<div class="card"><h3>Produits en rupture</h3><div class="fine">${rupt.map(p=>esc(p.name)).join(' · ')}</div></div>`:''}
  ${proche.length?`<div class="card"><h3>Proches de la rupture</h3><div class="fine">${proche.map(p=>esc(p.name)+' ('+p.qty+')').join(' · ')}</div></div>`:''}
@@ -1429,7 +1433,7 @@ function invModal(title,hint){
  ${hint?'<p class="fine">'+hint+'</p>':''}
  <label>Client</label><input id="iv-client" list="dl-cli" placeholder="Nom du client — la base propose vos clients" oninput="invCliMatch()"><datalist id="dl-cli">${S.clients.map(c=>`<option value="${esc(cliFull(c))}">`).join('')}</datalist><div id="iv-cli-hint" class="fine"></div>
  <label>Adresse du client (optionnel — enregistrée dans sa fiche)</label><input id="iv-addr">
- <div class="grid2"><div><label>Téléphone (optionnel)</label><input id="iv-tel"></div><div><label>Date</label><input id="iv-date" type="date" value="${INV_DATE||todayStr()}"></div></div>
+ <div class="grid2"><div><label>Téléphone (optionnel)</label><input id="iv-tel"></div><div><label>Date</label><input id="iv-date" type="date" value="${INV_DATE||defDate()}"></div></div>
  <label>Lignes</label><div id="iv-lines"></div>
  <button class="btn btn-a btn-sm" onclick="invAddLine()">+ Ajouter une ligne</button>
  <div class="grid2"><div><label>Réduction commerciale</label><select id="iv-dt" onchange="invTotalPrev()"><option value="none">Aucune</option><option value="amt">Montant fixe (${S.company.symbol})</option><option value="pct">Pourcentage (%)</option></select></div><div><label>Valeur de la réduction</label><input id="iv-dv" type="number" min="0" value="0" oninput="invTotalPrev()"></div></div>
@@ -1520,7 +1524,7 @@ function invPayOpen(id){
  <p class="fine">Client : <b>${esc(iv.client)}</b><br>Total TTC : <b>${fmt(t.ttc)}</b> · Déjà réglé : <b>${fmt(reg)}</b> · Reste dû : <b>${fmt(sol)}</b></p>
  ${(iv.clientId&&advBalance(iv.clientId)>0)?`<div class="fine" style="background:#F7F3EC;border-radius:10px;padding:.5rem .7rem;margin:.4rem 0">💰 Avance disponible pour ce client : <b>${fmt(advBalance(iv.clientId))}</b></div><label>Source du règlement</label><select id="ip-src"><option value="acc">Nouveau paiement (compte ci-dessous)</option><option value="adv">Imputer l’avance client</option></select>`:''}
  <label>Montant encaissé (${S.company.symbol}) — acompte ou solde</label><input id="ip-amt" type="number" min="1" value="${sol}">
- <label>Date</label><input id="ip-date" type="date" value="${todayStr()}">
+ <label>Date</label><input id="ip-date" type="date" value="${defDate()}">
  <label>Mode d’encaissement (obligatoire)</label><select id="ip-acc"><option value="">— Choisir : Espèces, Wave, Orange Money… —</option>${S.accounts.map(a=>`<option value="${a.id}">${esc(a.name)}</option>`).join('')}</select>
  <button class="btn btn-p btn-full mt" onclick="invPayDo('${iv.id}')">Enregistrer l’encaissement</button>`);
 }
@@ -1735,6 +1739,11 @@ function exGuard(d){
 }
 let EXY=new Date().getFullYear();
 function exYFilter(d){return String(d||'').slice(0,4)===String(EXY);}
+function defDate(){
+ const cy=new Date().getFullYear();
+ if(EXY===cy)return todayStr();
+ return String(EXY)+'-01-01';
+}
 function renderExSel(){
  const el=document.getElementById('hd-ex');if(!el)return;
  exEnsure();
@@ -1778,8 +1787,16 @@ function exListHtml(){
  exEnsure();
  return [...S.exercises].sort((a,b)=>b.year-a.year).map(e=>`<div class="row"><div class="rmain"><div class="rt">Exercice ${e.year} ${e.status==='closed'?'<span class="chip" style="background:#ECE8DE;color:#8a8578">Clôturé</span>':'<span class="chip chip-g">Ouvert</span>'}</div><div class="rs">${e.status==='closed'?'Clôturé le '+dateLabel(String(e.closedAt).slice(0,10))+(e.by?' par '+esc(e.by):'')+' · Report à nouveau : <b>'+fmt(e.ran)+'</b>':'01/01/'+e.year+' → 31/12/'+e.year}</div></div></div>`).join('');
 }
-function exCloseOpen(){
- const y=exNextToClose();
+function exCloseOpen(pickedY){
+ const openYs=[...S.exercises].filter(e=>e.status!=='closed').map(e=>e.year).sort((a,b)=>a-b);
+ if(!openYs.length){toast('Aucun exercice ouvert à clôturer');return;}
+ if(pickedY===undefined&&openYs.length>1){
+  openModal(`<h2>Clôturer un exercice <button class="close" onclick="closeSheet('sheet-modal')">×</button></h2>
+  <p class="fine">Vous avez plusieurs exercices ouverts. Choisissez celui à clôturer. La clôture reporte ses soldes (RAN) et son stock vers l’exercice suivant.</p>
+  ${openYs.map(yy=>`<button class="btn btn-o btn-full mt" onclick="exCloseOpen(${yy})">Clôturer l’exercice ${yy}</button>`).join('')}`);
+  return;
+ }
+ const y=(pickedY!==undefined)?pickedY:openYs[0];
  if(exClosed(y)){toast('Exercice déjà clôturé');return;}
  const b=exBalancesAt(y);
  openModal(`<h2>Clôturer l’exercice ${y} <button class="close" onclick="closeSheet('sheet-modal')">×</button></h2>
