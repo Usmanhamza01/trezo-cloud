@@ -1679,7 +1679,7 @@ R.set=function(){
  <div class="card"><h2>Exercices comptables</h2>
   <p class="fine">Chaque exercice couvre l’année civile (01/01 → 31/12). La clôture verrouille définitivement les écritures de l’année, calcule les soldes de clôture, reporte le stock en solde initial et ouvre l’exercice suivant.</p>
   ${exListHtml()}
-  ${IS_ADMIN()?`<div class="grid2 mt adm"><button class="btn btn-o btn-sm" onclick="exCreatePrev()">+ Exercice antérieur</button><button class="btn btn-o btn-sm" onclick="exCreateNext()">+ Exercice suivant</button></div><button class="btn btn-p btn-full mt adm" onclick="exCloseOpen()">Clôturer l’exercice ${exNextToClose()}</button>`:''}
+  ${IS_ADMIN()?`<div class="grid2 mt adm"><button class="btn btn-o btn-sm" onclick="exCreatePrev()">+ Exercice antérieur</button><button class="btn btn-o btn-sm" onclick="exCreateNext()">+ Exercice suivant</button></div><button class="btn btn-p btn-full mt adm" onclick="exCloseOpen()">Clôturer un exercice</button>`:''}
  </div>
  <div class="card"><h2>Comptes &amp; modes d’encaissement</h2>
   <p class="fine">Caisse, banque, mobile money… Chaque flux est rattaché à un compte : vous savez toujours où se trouve l’argent.</p>
