@@ -636,7 +636,7 @@ function txRow(x,del){
 /* ===== Tableau de bord ===== */
 let CH={};
 R.dash=function(){
- if(EXY!==new Date().getFullYear()){renderDashEx();return;}
+ if(EXY<new Date().getFullYear()||exClosed(EXY)){renderDashEx();return;}
  const m=curMonth(),enc=txMonth(m,'in'),dec=txMonth(m,'out');
  const goalT=goalFor(m);
  const low=S.products.filter(p=>p.qty<=p.alert&&p.alert>0);
@@ -1503,10 +1503,19 @@ function saveInvoice(kind){
  if(exGuard((document.getElementById('iv-date')||{}).value||todayStr()))return;
  if(!fromTx&&!proforma){for(const l of lines){if(l.productId){const p=S.products.find(x=>x.id===l.productId);if(p&&p.qty<l.qty){toast('Stock insuffisant pour '+p.name+' ('+p.qty+' dispo)');return;}}}}
  const pfx=S.settings.invPrefix||initialsOf(S.company.name);
+ const ivDate=document.getElementById('iv-date').value||defDate();
+ const exYear=String(ivDate).slice(0,4);
  let num;
- if(proforma){S.settings.proSeq=(S.settings.proSeq||0)+1;num=pfx+'-PF-'+new Date().getFullYear()+'-'+String(S.settings.proSeq).padStart(4,'0');}
- else{S.settings.invSeq++;num=pfx+'-'+new Date().getFullYear()+'-'+String(S.settings.invSeq).padStart(4,'0');}
- const iv={id:uid(),num,client,clientId:cli.id,phone:document.getElementById('iv-tel').value.trim(),date:document.getElementById('iv-date').value||todayStr(),lines,tva:+document.getElementById('iv-tva').value||0,disc:(function(){const dt=(document.getElementById('iv-dt')||{}).value||'none';const dv=+((document.getElementById('iv-dv')||{}).value)||0;return(dt!=='none'&&dv>0)?{t:dt,v:dv}:null;})(),paid:!!fromTx,proforma:proforma};
+ if(proforma){
+  S.settings.proSeqY=S.settings.proSeqY||{};
+  const nextP=(S.settings.proSeqY[exYear]||0)+1;S.settings.proSeqY[exYear]=nextP;
+  num=pfx+'-PF-'+exYear+'-'+String(nextP).padStart(3,'0');
+ }else{
+  S.settings.seqY=S.settings.seqY||{};
+  const nextN=(S.settings.seqY[exYear]||0)+1;S.settings.seqY[exYear]=nextN;
+  num=pfx+'-'+exYear+'-'+String(nextN).padStart(3,'0');
+ }
+ const iv={id:uid(),num,client,clientId:cli.id,phone:document.getElementById('iv-tel').value.trim(),date:ivDate,lines,tva:+document.getElementById('iv-tva').value||0,disc:(function(){const dt=(document.getElementById('iv-dt')||{}).value||'none';const dv=+((document.getElementById('iv-dv')||{}).value)||0;return(dt!=='none'&&dv>0)?{t:dt,v:dv}:null;})(),paid:!!fromTx,proforma:proforma};
  if(fromTx)iv.pays=[{d:iv.date,amount:invTotals(iv).ttc}];
  if(!fromTx&&!proforma)lines.forEach(l=>{if(l.productId){const p=S.products.find(x=>x.id===l.productId);if(p){p.qty=Math.max(0,p.qty-l.qty);smov(p.id,'out',l.qty,l.pu||0,'Facture '+num);}}});
  S.invoices.push(iv);
@@ -1760,7 +1769,7 @@ function renderDashEx(){
  const cats={};txY.filter(t=>t.type==='out').forEach(t=>{cats[t.cat]=(cats[t.cat]||0)+t.amount;});
  const topc=Object.keys(cats).sort((x,z)=>cats[z]-cats[x]).slice(0,6);
  document.getElementById('v-dash').innerHTML=`
- <div class="card" style="background:#10201B;color:#fff"><h3 style="color:#fff;margin-bottom:.3rem">Exercice ${y}${e&&e.status==='closed'?' — clôturé 🔒':''}</h3><div class="fine" style="color:rgba(255,255,255,.72)">${e&&e.status==='closed'?'Consultation en lecture seule : les écritures de cet exercice sont verrouillées.':'Consultation d’un exercice antérieur.'} Sélectionnez « Exercice ${new Date().getFullYear()} » en haut pour revenir au tableau de bord courant.</div></div>
+ <div class="card" style="background:#10201B;color:#fff"><h3 style="color:#fff;margin-bottom:.3rem">Exercice ${y}${e&&e.status==='closed'?' — clôturé 🔒':''}</h3><div class="fine" style="color:rgba(255,255,255,.72)">${e&&e.status==='closed'?'Exercice clôturé — consultation en lecture seule, les écritures sont verrouillées.':'Exercice antérieur — consultation en lecture seule.'} Sélectionnez « Exercice ${new Date().getFullYear()} » en haut pour revenir au tableau de bord courant.</div></div>
  <div class="kgrid">
   <div class="kpi in"><div class="lbl">Encaissements ${y}</div><div class="val" style="font-size:1.05rem">${fmt(inY)}</div></div>
   <div class="kpi out"><div class="lbl">Décaissements ${y}</div><div class="val" style="font-size:1.05rem">${fmt(outY)}</div></div>
