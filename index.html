@@ -234,7 +234,7 @@ const CONFIG=window.TREZO_CONFIG||{};
 const CURRENCIES=[["XOF","FCFA","Franc CFA (UEMOA)"],["XAF","FCFA","Franc CFA (CEMAC)"],["MAD","DH","Dirham marocain"],["TND","DT","Dinar tunisien"],["DZD","DA","Dinar algérien"],["EGP","E£","Livre égyptienne"],["NGN","₦","Naira nigérian"],["GHS","GH₵","Cedi ghanéen"],["KES","KSh","Shilling kényan"],["TZS","TSh","Shilling tanzanien"],["UGX","USh","Shilling ougandais"],["RWF","FRw","Franc rwandais"],["GNF","FG","Franc guinéen"],["CDF","FC","Franc congolais"],["MRU","UM","Ouguiya mauritanien"],["ZAR","R","Rand sud-africain"],["ETB","Br","Birr éthiopien"],["USD","$","Dollar US"],["EUR","€","Euro"]];
 const CAT_IN=["Ventes","Avance client","Prestations de services","Remboursement","Apport","Autre"];
 const CAT_OUT=["Achats fournisseurs","Loyer","Salaires","Transport","Électricité & eau","Internet & téléphone","Impôts & taxes","Entretien","Autre",'Charges fixes'];
-const DEFAULT={v:2,company:{name:"",currency:"XOF",symbol:"FCFA",logo:null},license:null,products:[],accounts:[],clients:[],charges:[],chgPays:[],exercises:[],stockMov:[],tx:[],employees:[],salPays:[],goals:[],invoices:[],journal:[],settings:{pin:null,readOnly:false,invSeq:0}};
+const DEFAULT={v:2,company:{name:"",currency:"XOF",symbol:"FCFA",logo:null},license:null,products:[],accounts:[],clients:[],charges:[],chgPays:[],exercises:[],stockMov:[],tx:[],employees:[],salPays:[],salAdv:[],goals:[],invoices:[],journal:[],settings:{pin:null,readOnly:false,invSeq:0}};
 const LOGO='data:image/svg+xml;utf8,'+encodeURIComponent("<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect width='192' height='192' rx='42' fill='#0E5A45'/><rect x='46' y='104' width='22' height='42' rx='6' fill='#F2B33D'/><rect x='78' y='84' width='22' height='62' rx='6' fill='#7FC8A9'/><rect x='110' y='58' width='22' height='88' rx='6' fill='#FFFFFF'/><rect x='38' y='36' width='116' height='16' rx='6' fill='#FFFFFF'/></svg>");
 let S=JSON.parse(JSON.stringify(DEFAULT));
 let SB=null,SESSION=null,COMPANY=null,DOC_VERSION=1,SAVE_T=null,SAVING=false,PENDING=false,PERMS=null,MYROLE='owner',MEMS=[];
@@ -278,7 +278,7 @@ async function flushSave(){
  if(SAVING){PENDING=true;return;}
  SAVING=true;PENDING=false;
  try{
-  const payload={products:S.products,accounts:S.accounts,clients:S.clients,charges:S.charges,chgPays:S.chgPays,exercises:S.exercises,stockMov:S.stockMov,tx:S.tx,employees:S.employees,salPays:S.salPays,goals:S.goals,invoices:S.invoices,journal:S.journal,settings:S.settings,logo:S.company.logo};
+  const payload={products:S.products,accounts:S.accounts,clients:S.clients,charges:S.charges,chgPays:S.chgPays,exercises:S.exercises,stockMov:S.stockMov,tx:S.tx,employees:S.employees,salPays:S.salPays,salAdv:S.salAdv,goals:S.goals,invoices:S.invoices,journal:S.journal,settings:S.settings,logo:S.company.logo};
   const r=await SB.rpc('save_data',{p_company:COMPANY.id,p_data:payload,p_version:DOC_VERSION});
   if(r.error)throw r.error;
   DOC_VERSION=r.data;setSync(' · ✓ synchronisé');
@@ -450,7 +450,7 @@ function applyCompany(){
 }
 function hydrate(cd){
  DOC_VERSION=cd.version;const d=cd.data||{};
- ['products','accounts','clients','charges','chgPays','exercises','stockMov','tx','employees','salPays','goals','invoices','journal'].forEach(k=>S[k]=Array.isArray(d[k])?d[k]:[]);
+ ['products','accounts','clients','charges','chgPays','exercises','stockMov','tx','employees','salPays','salAdv','goals','invoices','journal'].forEach(k=>S[k]=Array.isArray(d[k])?d[k]:[]);
  S.settings=Object.assign({},DEFAULT.settings,d.settings||{});
  S.company.logo=d.logo||null;
  if(!S.accounts.length)S.accounts=[{id:'a_caisse',name:'Caisse'},{id:'a_banque',name:'Banque'},{id:'a_om',name:'Orange Money'},{id:'a_wave',name:'Wave'}];
@@ -877,12 +877,16 @@ R.sal=function(){
  <div class="card"><h2>Salaires</h2>
   <label>Mois</label><input type="month" id="sal-m" value="${SALM}" onchange="SALM=this.value;R.sal()">
   <div class="fine mt">Masse salariale mensuelle : <b>${fmt(tot)}</b></div>
-  <div class="twrap mt"><table><tr><th>Employé</th><th>Salaire</th><th>Statut</th><th class="adm"></th></tr>
+  <div class="fine">Total avances versées ce mois-ci : <b>${fmt(S.salAdv.filter(a=>a.month===SALM).reduce((s,a)=>s+a.amount,0))}</b></div>
+  <div class="twrap mt"><table><tr><th>Employé</th><th>Salaire</th><th>Avances du mois</th><th>Net à payer</th><th>Statut</th><th class="adm"></th></tr>
   ${S.employees.map(e=>{
    const pay=S.salPays.find(p=>p.empId===e.id&&p.month===SALM);
-   return `<tr><td><b>${esc(e.name)}</b><br><span class="fine">${esc(e.role||'')}</span></td><td>${fmt(e.salary)}</td><td>${pay?`<span class="chip chip-g">Payé le ${dateLabel(pay.date)}</span>`:'<span class="chip chip-a">À payer</span>'}</td><td class="adm">${pay?'':`<button class="btn btn-sm btn-p" onclick="paySal('${e.id}')">Payer</button> `}<button class="btn btn-sm btn-d" onclick="delEmp('${e.id}')">✕</button></td></tr>`;
-  }).join('')||'<tr><td colspan="4"><div class="empty">Aucun employé enregistré.</div></td></tr>'}
-  </table></div></div>
+   const adv=S.salAdv.filter(a=>a.empId===e.id&&a.month===SALM).reduce((s,a)=>s+a.amount,0);
+   const net=Math.max(0,e.salary-adv);
+   return `<tr><td><b>${esc(e.name)}</b><br><span class="fine">${esc(e.role||'')}</span></td><td>${fmt(e.salary)}</td><td>${adv>0?'<span class="chip chip-a">'+fmt(adv)+'</span>':'—'}</td><td><b>${fmt(net)}</b></td><td>${pay?`<span class="chip chip-g">Payé le ${dateLabel(pay.date)}</span>`:(adv>=e.salary-0.5&&adv>0?'<span class="chip chip-a">Couvert par avances</span>':'<span class="chip chip-a">À payer</span>')}</td><td class="adm">${pay?'':`<button class="btn btn-sm btn-o" onclick="advSal('${e.id}')">Avance</button> <button class="btn btn-sm btn-p" onclick="paySal('${e.id}')">Payer</button> `}<button class="btn btn-sm btn-d" onclick="delEmp('${e.id}')">✕</button></td></tr>`;
+  }).join('')||'<tr><td colspan="6"><div class="empty">Aucun employé enregistré.</div></td></tr>'}
+  </table></div>
+  <p class="fine">Une avance versée en cours de mois est déduite automatiquement du net à payer lors du règlement du salaire.</p></div>
  <div class="card adm"><h3>Ajouter un employé</h3>
   <label>Nom complet</label><input id="e-name">
   <div class="grid2"><div><label>Poste</label><input id="e-role" placeholder="Ex. : Vendeur"></div><div><label>Salaire mensuel</label><input id="e-sal" type="number" min="0"></div></div>
@@ -900,12 +904,52 @@ function delEmp(id){
 }
 function paySal(id){
  const e=S.employees.find(x=>x.id===id);if(!e)return;
- if(!confirm('Payer le salaire de '+e.name+' ('+fmt(e.salary)+') pour '+monthLabel(SALM)+' ? Un décaissement sera créé.'))return;
- const d=todayStr();
- S.salPays.push({id:uid(),empId:id,month:SALM,amount:e.salary,date:d});
- S.tx.push({id:uid(),type:'out',amount:e.salary,cat:'Salaires',desc:'Salaire '+e.name+' — '+monthLabel(SALM),date:d,productId:null,qty:null});
- log('Salaire payé : '+e.name+' — '+monthLabel(SALM)+' ('+fmt(e.salary)+')');
- save();R.sal();toast('Salaire enregistré');
+ const adv=S.salAdv.filter(a=>a.empId===e.id&&a.month===SALM).reduce((s,a)=>s+a.amount,0);
+ const net=Math.max(0,e.salary-adv);
+ openModal(`<h2>Payer le salaire — ${esc(e.name)} <button class="close" onclick="closeSheet('sheet-modal')">×</button></h2>
+ <p class="fine">Mois : <b>${monthLabel(SALM)}</b><br>Salaire : ${fmt(e.salary)}${adv>0?'<br>Avances déjà versées : −'+fmt(adv):''}<br><b>Net à payer : ${fmt(net)}</b></p>
+ ${net>0?`<div class="grid2"><div><label>Montant (${S.company.symbol})</label><input id="ps-amt" type="number" value="${net}"></div><div><label>Date</label><input id="ps-date" type="date" value="${defDate()}"></div></div>
+ <label>Compte / mode de paiement</label><select id="ps-acc">${S.accounts.map(a=>`<option value="${a.id}">${esc(a.name)}</option>`).join('')}</select>`:'<p class="fine">Le salaire est intégralement couvert par les avances déjà versées : aucun décaissement supplémentaire ne sera créé.</p>'}
+ <button class="btn btn-p btn-full mt" onclick="paySalDo('${e.id}')">${net>0?'Enregistrer le paiement du solde':'Marquer comme payé'}</button>`);
+}
+function paySalDo(id){
+ const e=S.employees.find(x=>x.id===id);if(!e)return;
+ const adv=S.salAdv.filter(a=>a.empId===e.id&&a.month===SALM).reduce((s,a)=>s+a.amount,0);
+ const net=Math.max(0,e.salary-adv);
+ const d=(document.getElementById('ps-date')||{}).value||defDate();
+ if(exGuard(d))return;
+ const amt=net>0?(+document.getElementById('ps-amt').value||net):0;
+ S.salPays.push({id:uid(),empId:id,month:SALM,amount:e.salary,net:amt,adv:adv,date:d});
+ if(net>0){
+  S.tx.push({id:uid(),type:'out',amount:amt,cat:'Salaires',desc:'Salaire '+e.name+' — '+monthLabel(SALM)+(adv>0?' (solde après avances)':''),date:d,acc:document.getElementById('ps-acc').value,productId:null,qty:null});
+ }
+ log('Salaire payé : '+e.name+' — '+monthLabel(SALM)+' (net '+fmt(amt)+(adv>0?', avances '+fmt(adv):'')+')');
+ save();closeSheet('sheet-modal');R.sal();toast('Salaire enregistré');
+}
+function advSal(id){
+ const e=S.employees.find(x=>x.id===id);if(!e)return;
+ const dejaAdv=S.salAdv.filter(a=>a.empId===e.id&&a.month===SALM).reduce((s,a)=>s+a.amount,0);
+ const restant=Math.max(0,e.salary-dejaAdv);
+ openModal(`<h2>Avance sur salaire — ${esc(e.name)} <button class="close" onclick="closeSheet('sheet-modal')">×</button></h2>
+ <p class="fine">Mois : <b>${monthLabel(SALM)}</b> · Salaire : ${fmt(e.salary)}${dejaAdv>0?' · Avances déjà versées : '+fmt(dejaAdv):''}<br>Cette avance sera déduite du net à payer au moment du salaire.</p>
+ <div class="grid2"><div><label>Montant de l’avance (${S.company.symbol})</label><input id="av-amt" type="number" min="0" value="${restant}"></div><div><label>Date</label><input id="av-date" type="date" value="${defDate()}"></div></div>
+ <label>Compte / mode de paiement</label><select id="av-acc">${S.accounts.map(a=>`<option value="${a.id}">${esc(a.name)}</option>`).join('')}</select>
+ <label>Commentaire (optionnel)</label><input id="av-note">
+ <button class="btn btn-p btn-full mt" onclick="advSalDo('${e.id}')">Verser l’avance</button>`);
+}
+function advSalDo(id){
+ const e=S.employees.find(x=>x.id===id);if(!e)return;
+ const amt=+document.getElementById('av-amt').value;
+ const d=document.getElementById('av-date').value||defDate();
+ if(!amt||amt<=0){toast('Montant invalide');return;}
+ if(exGuard(d))return;
+ const dejaAdv=S.salAdv.filter(a=>a.empId===e.id&&a.month===SALM).reduce((s,a)=>s+a.amount,0);
+ if(amt>e.salary-dejaAdv+0.5&&!confirm('Cette avance ('+fmt(amt)+') dépasse le salaire restant ('+fmt(Math.max(0,e.salary-dejaAdv))+'). Continuer ?'))return;
+ const note=(document.getElementById('av-note')||{}).value||'';
+ S.salAdv.push({id:uid(),empId:id,month:SALM,amount:amt,date:d,note:note});
+ S.tx.push({id:uid(),type:'out',amount:amt,cat:'Salaires',desc:'Avance sur salaire — '+e.name+' ('+monthLabel(SALM)+')'+(note?' · '+note:''),date:d,acc:document.getElementById('av-acc').value,productId:null,qty:null});
+ log('Avance sur salaire : '+e.name+' — '+fmt(amt)+' ('+monthLabel(SALM)+')');
+ save();closeSheet('sheet-modal');R.sal();toast('Avance versée');
 }
 
 /* ===== Objectifs ===== */
@@ -1987,7 +2031,7 @@ function restore(inp){
    const d=JSON.parse(e.target.result);
    if(!d.v)throw 0;
    if(!confirm('Remplacer les données actuelles (flux, stocks, factures…) par celles de ce fichier ? Le nom d’entreprise et la licence ne changent pas.'))return;
-   ['products','accounts','clients','charges','chgPays','exercises','stockMov','tx','employees','salPays','goals','invoices','journal'].forEach(k=>{S[k]=Array.isArray(d[k])?d[k]:[];});
+   ['products','accounts','clients','charges','chgPays','exercises','stockMov','tx','employees','salPays','salAdv','goals','invoices','journal'].forEach(k=>{S[k]=Array.isArray(d[k])?d[k]:[];});
    if(!S.accounts.length)S.accounts=[{id:'a_caisse',name:'Caisse'},{id:'a_banque',name:'Banque'},{id:'a_om',name:'Orange Money'},{id:'a_wave',name:'Wave'}];
    S.settings=Object.assign({},DEFAULT.settings,d.settings||{});
    if(d.company&&d.company.logo)S.company.logo=d.company.logo;
