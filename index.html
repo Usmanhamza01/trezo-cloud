@@ -270,6 +270,7 @@ async function promptInstall(){
 /* ===== Persistance cloud (document par entreprise, verrou optimiste) ===== */
 function save(){
  if(!COMPANY)return;
+ ensurePnums();
  PENDING=true;setSync(' · enregistrement…');
  clearTimeout(SAVE_T);SAVE_T=setTimeout(flushSave,700);
 }
@@ -628,9 +629,196 @@ function goalFor(m){
  if(S.settings.objMode==='auto')return Math.round(stockVal(S.settings.objBase||'vente')*(+S.settings.objCoef||100)/100)||null;
  return null;
 }
+/* ===== Sélection multiple & import des factures ===== */
+let SELIV=[];
+function selInv(id,on){
+ SELIV=SELIV.filter(x=>x!==id);
+ if(on)SELIV.push(id);
+ const b=document.getElementById('iv-selcount');
+ if(b)b.textContent=SELIV.length?SELIV.length+' sélectionnée(s)':'Aucune sélection';
+}
+function selInvAll(on){
+ SELIV=on?factList().map(iv=>iv.id):[];
+ renderFactTable();
+}
+function factSelBar(){
+ return `<div class="grid2" style="margin-bottom:.7rem">
+  <button class="btn btn-o btn-sm adm" onclick="invImportOpen()">⬆ Importer des factures</button>
+  <button class="btn btn-o btn-sm" onclick="invImportTpl()">Modèle .xlsx</button>
+ </div>
+ <div class="adm" style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;margin-bottom:.6rem">
+  <label style="margin:0;text-transform:none;font-size:.8rem;display:flex;align-items:center;gap:.35rem"><input type="checkbox" style="width:auto" onchange="selInvAll(this.checked)"> Tout sélectionner</label>
+  <span class="fine" id="iv-selcount">${SELIV.length?SELIV.length+' sélectionnée(s)':'Aucune sélection'}</span>
+  <button class="btn btn-sm btn-d act-del" onclick="bulkDelInv()">Supprimer la sélection</button>
+ </div>`;
+}
+function bulkDelInv(){
+ if(!SELIV.length){toast('Sélectionnez d’abord des factures');return;}
+ const list=S.invoices.filter(iv=>SELIV.indexOf(iv.id)>=0);
+ if(!confirm('Supprimer définitivement '+list.length+' facture(s) ?\n\nLes factures comportant des règlements ou appartenant à un exercice clôturé seront ignorées. Les quantités seront remises en stock.'))return;
+ let del=0,skip=0;
+ list.forEach(iv=>{
+  const y=String(iv.date).slice(0,4);
+  if(exClosed(y)&&!IS_ADMIN()){skip++;return;}
+  if(invPaid(iv)>0){skip++;return;}
+  iv.lines.forEach(l=>{if(l.productId){const p=S.products.find(x=>x.id===l.productId);if(p){p.qty+=l.qty;smov(p.id,'in',l.qty,l.pu||0,'Suppression facture '+iv.num);}}});
+  S.invoices=S.invoices.filter(x=>x.id!==iv.id);del++;
+ });
+ SELIV=[];
+ log('Suppression multiple : '+del+' facture(s) supprimée(s)'+(skip?', '+skip+' ignorée(s)':''));
+ save();R.fact();toast(del+' facture(s) supprimée(s)'+(skip?' · '+skip+' ignorée(s)':''));
+}
+function invImportTpl(){
+ if(!window.XLSX){toast('Module Excel non chargé — connectez-vous une fois à Internet');return;}
+ const ws=XLSX.utils.aoa_to_sheet([
+  ['Date','N° de pièce','Client','Téléphone','Produit','Quantité','Prix unitaire','Réduction commerciale','TVA','Montant TTC'],
+  ['2026-07-01','FAC-2026-001','Mamy Gueye','771234567','Sac de riz 50 kg',2,25000,5000,18,'',''],
+  ['2026-07-01','FAC-2026-001','Mamy Gueye','771234567','Huile 20 L',1,18000,'','','']]);
+ ws['!cols']=[{wch:12},{wch:16},{wch:22},{wch:14},{wch:26},{wch:10},{wch:14},{wch:20},{wch:8},{wch:14}];
+ const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Factures');
+ XLSX.writeFile(wb,'trezo-modele-factures.xlsx');
+}
+let IMPIV=null;
+function invImportOpen(){
+ IMPIV=null;
+ openModal(`<h2>Importer des factures <button class="close" onclick="closeSheet('sheet-modal')">×</button></h2>
+ <p class="fine">Colonnes attendues : <b>Date</b>, <b>N° de pièce</b>, <b>Client</b>, <b>Téléphone</b>, <b>Produit</b>, <b>Quantité</b>, <b>Prix unitaire</b>, <b>Réduction commerciale</b>, <b>TVA</b>, <b>Montant TTC</b>. Une facture de plusieurs produits occupe <b>plusieurs lignes portant le même n° de pièce</b>. Un numéro déjà existant est ignoré (aucun doublon). Les clients inconnus sont créés automatiquement ; <b>le stock n’est pas modifié</b> par l’import.</p>
+ <input type="file" accept=".xlsx,.xls,.csv" onchange="invImportHandle(this)">
+ <div id="ivimp-res"></div>`);
+}
+function invImportHandle(inp){
+ const f=inp.files[0];if(!f)return;
+ if(!window.XLSX){toast('Module Excel non chargé — connectez-vous une fois à Internet');return;}
+ const res=document.getElementById('ivimp-res');
+ res.innerHTML='<div class="fine mt">Analyse du fichier…</div>';
+ const r=new FileReader();
+ r.onload=e=>{
+  try{
+   const wb=XLSX.read(e.target.result,{type:'array',cellDates:true});
+   const rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:''});
+   if(!rows.length){res.innerHTML='<div class="msg-err">Fichier vide ou illisible.</div>';return;}
+   if(rows.length>4000){res.innerHTML='<div class="msg-err">Maximum 4 000 lignes.</div>';return;}
+   const map={};
+   Object.keys(rows[0]).forEach(k=>{const n=stripAcc(k).toLowerCase().trim();
+    if(n==='date')map.date=k;
+    else if(n.indexOf('piece')>=0||n==='n°'||n==='num'||n==='numero')map.num=k;
+    else if(n.indexOf('client')===0)map.cli=k;
+    else if(n.indexOf('tel')===0)map.tel=k;
+    else if(n.indexOf('produit')===0||n.indexOf('design')===0)map.prod=k;
+    else if(n.indexOf('quantite')===0||n==='qte')map.qty=k;
+    else if(n.indexOf('prix')===0||n.indexOf('unitaire')>=0)map.pu=k;
+    else if(n.indexOf('reduction')===0||n.indexOf('remise')===0)map.disc=k;
+    else if(n==='tva')map.tva=k;
+    else if(n.indexOf('montant')===0||n.indexOf('ttc')>=0)map.ttc=k;});
+   const miss=['date','cli','prod','qty','pu'].filter(c=>!map[c]);
+   if(miss.length){const noms={date:'Date',cli:'Client',prod:'Produit',qty:'Quantité',pu:'Prix unitaire'};
+    res.innerHTML='<div class="msg-err">Structure invalide — colonne(s) manquante(s) : <b>'+miss.map(c=>noms[c]).join(', ')+'</b>. Téléchargez le modèle.</div>';return;}
+   const groups={};const errors=[];
+   rows.forEach((row,i)=>{
+    const line=i+2;
+    const d=impDate(row[map.date]);
+    if(!d){errors.push('Ligne '+line+' : date invalide');return;}
+    const cli=String(row[map.cli]).trim();
+    if(!cli){errors.push('Ligne '+line+' : client manquant');return;}
+    const label=String(row[map.prod]).trim();
+    const qty=+String(row[map.qty]).replace(/[\s\u202F\u00A0]/g,'')||0;
+    const pu=+String(row[map.pu]).replace(/[\s\u202F\u00A0]/g,'')||0;
+    if(!label){errors.push('Ligne '+line+' : produit manquant');return;}
+    if(qty<=0){errors.push('Ligne '+line+' : quantité invalide');return;}
+    const num=map.num?String(row[map.num]).trim():'';
+    const key=num||(d+'|'+cli.toLowerCase());
+    groups[key]=groups[key]||{num:num,date:d,client:cli,phone:map.tel?String(row[map.tel]).trim():'',lines:[],disc:0,tva:0};
+    groups[key].lines.push({label:label,qty:qty,pu:pu});
+    if(map.disc){const dv=+String(row[map.disc]).replace(/[\s\u202F\u00A0]/g,'')||0;if(dv>groups[key].disc)groups[key].disc=dv;}
+    if(map.tva){const tv=+String(row[map.tva]).replace(/[\s\u202F\u00A0]/g,'')||0;if(tv>groups[key].tva)groups[key].tva=tv;}
+   });
+   const all=Object.keys(groups).map(k=>groups[k]);
+   const dupes=all.filter(g=>g.num&&S.invoices.some(iv=>iv.num===g.num));
+   IMPIV=all.filter(g=>!(g.num&&S.invoices.some(iv=>iv.num===g.num)));
+   const errHtml=errors.length?'<div class="msg-err" style="white-space:normal">'+errors.slice(0,10).map(esc).join('<br>')+(errors.length>10?'<br>… et '+(errors.length-10)+' autre(s)':'')+'</div>':'';
+   res.innerHTML='<div class="'+(errors.length?'msg-err':'msg-ok')+'" style="margin-top:.8rem"><b>'+IMPIV.length+'</b> facture(s) à importer · <b>'+dupes.length+'</b> doublon(s) ignoré(s) · <b>'+errors.length+'</b> erreur(s)</div>'+errHtml
+    +'<div class="twrap" style="max-height:220px;overflow:auto;margin-top:.5rem"><table><tr><th>N°</th><th>Date</th><th>Client</th><th>Lignes</th><th>TTC</th></tr>'
+    +IMPIV.slice(0,200).map(g=>{const t=invTotals({lines:g.lines,tva:g.tva,disc:g.disc>0?{t:'amt',v:g.disc}:null});return '<tr><td>'+esc(g.num||'(auto)')+'</td><td>'+esc(g.date)+'</td><td>'+esc(g.client)+'</td><td>'+g.lines.length+'</td><td>'+fmt(t.ttc)+'</td></tr>';}).join('')
+    +'</table></div>'
+    +(IMPIV.length?'<button class="btn btn-p btn-full mt" onclick="invImportApply()">Importer les '+IMPIV.length+' facture(s)</button>':'');
+  }catch(err){res.innerHTML='<div class="msg-err">Impossible de lire ce fichier. Vérifiez qu’il s’agit bien d’un .xlsx ou .csv.</div>';}
+ };
+ r.readAsArrayBuffer(f);
+}
+function invImportApply(){
+ if(!IMPIV||!IMPIV.length)return;
+ let n=0,skip=0;
+ const pfx=S.settings.invPrefix||initialsOf(S.company.name);
+ IMPIV.forEach(g=>{
+  const y=String(g.date).slice(0,4);
+  if(exClosed(y)&&!IS_ADMIN()){skip++;return;}
+  let cli=S.clients.find(x=>cliFull(x).toLowerCase()===g.client.toLowerCase());
+  if(!cli){cli={id:uid(),name:g.client,firstname:'',phone:g.phone||'',address:''};S.clients.push(cli);}
+  else if(g.phone&&!cli.phone)cli.phone=g.phone;
+  let num=g.num;
+  if(!num){
+   S.settings.seqY=S.settings.seqY||{};
+   const nn=(S.settings.seqY[y]||0)+1;S.settings.seqY[y]=nn;
+   num=pfx+'-'+y+'-'+String(nn).padStart(3,'0');
+  }
+  const lines=g.lines.map(l=>{
+   const p=S.products.find(q=>stripAcc(q.name).toLowerCase()===stripAcc(l.label).toLowerCase());
+   return{label:l.label,qty:l.qty,pu:l.pu,productId:p?p.id:''};
+  });
+  S.invoices.push({id:uid(),num:num,client:g.client,clientId:cli.id,phone:g.phone||'',date:g.date,lines:lines,
+   tva:g.tva||0,disc:g.disc>0?{t:'amt',v:g.disc}:null,paid:false,proforma:false,imported:true});
+  n++;
+ });
+ log('Import de '+n+' facture(s) depuis un fichier'+(skip?' ('+skip+' ignorée(s) — exercice clôturé)':''));
+ IMPIV=null;save();closeSheet('sheet-modal');R.fact();
+ toast(n+' facture(s) importée(s)'+(skip?' · '+skip+' ignorée(s)':''));
+}
+/* ===== Sélection multiple des flux ===== */
+let SELTX=[];
+function selTx(id,on){
+ SELTX=SELTX.filter(x=>x!==id);
+ if(on)SELTX.push(id);
+ const b=document.getElementById('tx-selcount');
+ if(b)b.textContent=SELTX.length?SELTX.length+' sélectionnée(s)':'Aucune sélection';
+}
+function selTxAll(on){
+ SELTX=on?S.tx.filter(x=>x.type===FLUX&&exYFilter(x.date)).map(x=>x.id):[];
+ renderFluxList();
+}
+function fluxSelBar(){
+ return `<div class="adm" style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;margin:.2rem 0 .6rem">
+  <label style="margin:0;text-transform:none;font-size:.8rem;display:flex;align-items:center;gap:.35rem"><input type="checkbox" style="width:auto" onchange="selTxAll(this.checked)"> Tout sélectionner</label>
+  <span class="fine" id="tx-selcount">${SELTX.length?SELTX.length+' sélectionnée(s)':'Aucune sélection'}</span>
+  <button class="btn btn-sm btn-d act-del" onclick="bulkDelTx()">Supprimer la sélection</button>
+ </div>`;
+}
+function bulkDelTx(){
+ if(!SELTX.length){toast('Sélectionnez d’abord des opérations');return;}
+ const list=S.tx.filter(x=>SELTX.indexOf(x.id)>=0);
+ if(!confirm('Supprimer définitivement '+list.length+' opération(s) ?\n\nLes transferts seront retirés avec leur écriture jumelle, les quantités vendues remises en stock. Les opérations d’un exercice clôturé seront ignorées.'))return;
+ let del=0,skip=0;const gone=[];
+ list.forEach(t=>{
+  if(gone.indexOf(t.id)>=0)return;
+  const y=String(t.date).slice(0,4);
+  if(exClosed(y)&&!IS_ADMIN()){skip++;return;}
+  if(t.xfer){
+   let twin=null;
+   if(t.xid)twin=S.tx.find(x=>x.id!==t.id&&x.xid===t.xid);
+   if(!twin)twin=S.tx.find(x=>x.id!==t.id&&x.xfer&&x.date===t.date&&x.amount===t.amount&&x.desc===t.desc&&x.type!==t.type);
+   gone.push(t.id);if(twin)gone.push(twin.id);
+   del++;return;
+  }
+  if(t.productId&&t.type==='in'&&t.qty){const p=S.products.find(q=>q.id===t.productId);if(p){p.qty+=t.qty;smov(p.id,'in',t.qty,p.price||0,'Suppression opération');}}
+  gone.push(t.id);del++;
+ });
+ S.tx=S.tx.filter(x=>gone.indexOf(x.id)<0);
+ SELTX=[];
+ log('Suppression multiple : '+del+' opération(s) supprimée(s)'+(skip?', '+skip+' ignorée(s)':''));
+ save();if(R[CUR])R[CUR]();toast(del+' opération(s) supprimée(s)'+(skip?' · '+skip+' ignorée(s)':''));
+}
 function txRow(x,del){
  const p=x.productId?S.products.find(q=>q.id===x.productId):null;
- return `<div class="row"><div class="dot ${x.type}">${x.type==='in'?'+':'−'}</div><div class="rmain"><div class="rt">${esc(x.desc||x.cat)}${p?' · '+esc(p.name)+(x.qty?' ×'+x.qty:''):''}</div><div class="rs">${dateLabel(x.date)} — ${esc(x.cat)} · ${esc(accName(accOf(x)))}${x.hist&&x.hist.length?' · <span style="color:var(--ambre-fonce);font-weight:700">modifié</span>':''}</div></div><div class="ramt ${x.type}">${x.type==='in'?'+':'−'} ${fmt(x.amount)}</div>${del?`<button class="btn btn-sm btn-o adm act-edit" onclick="editTx('${x.id}')">✎</button>`:''}${del&&x.type==='in'?((x.invId||x.ivId)?`<button class="btn btn-sm btn-o" onclick="invPreview('${x.invId||x.ivId}')">Facture</button>`:(x.advance?`<span class="chip chip-a" title="Avance client — imputable sur une future facture">Avance</span>`:`<button class="btn btn-sm btn-a adm" onclick="invoiceFromTx('${x.id}')">Facturer</button>`)):''}${del?`<button class="btn btn-sm btn-d adm act-del" onclick="delTx('${x.id}')">✕</button>`:''}</div>`;
+ return `<div class="row">${del?`<input type="checkbox" class="adm" style="width:auto;margin-right:.5rem" ${SELTX.indexOf(x.id)>=0?'checked':''} onchange="selTx('${x.id}',this.checked)">`:''}<div class="dot ${x.type}">${x.type==='in'?'+':'−'}</div><div class="rmain"><div class="rt">${esc(x.desc||x.cat)}${p?' · '+esc(p.name)+(x.qty?' ×'+x.qty:''):''}</div><div class="rs">${x.pnum?'<b>'+esc(x.pnum)+'</b> · ':''}${dateLabel(x.date)} — ${esc(x.cat)} · ${esc(accName(accOf(x)))}${x.hist&&x.hist.length?' · <span style="color:var(--ambre-fonce);font-weight:700">modifié</span>':''}</div></div><div class="ramt ${x.type}">${x.type==='in'?'+':'−'} ${fmt(x.amount)}</div>${del?`<button class="btn btn-sm btn-o adm act-edit" onclick="editTx('${x.id}')">✎</button>`:''}${del&&x.type==='in'?((x.invId||x.ivId)?`<button class="btn btn-sm btn-o" onclick="invPreview('${x.invId||x.ivId}')">Facture</button>`:(x.advance?`<span class="chip chip-a" title="Avance client — imputable sur une future facture">Avance</span>`:`<button class="btn btn-sm btn-a adm" onclick="invoiceFromTx('${x.id}')">Facturer</button>`)):''}${del?`<button class="btn btn-sm btn-d adm act-del" onclick="delTx('${x.id}')">✕</button>`:''}</div>`;
 }
 
 /* ===== Tableau de bord ===== */
@@ -715,11 +903,13 @@ R.flux=function(){
  </div>
  <div class="card"><h3>Historique <span id="flux-count" style="font-weight:600;color:var(--gris);font-size:.85rem"></span></h3>
   <div class="grid2" style="margin:.6rem 0 .8rem"><input placeholder="Rechercher…" value="${esc(FLUX_Q)}" oninput="FLUX_Q=this.value;renderFluxList()"><input type="month" value="${FLUX_M}" onchange="FLUX_M=this.value;renderFluxList()"></div>
+  <div id="flux-sel"></div>
   <div id="flux-list"></div></div>`;
  renderFluxList();
 };
 function renderFluxList(){
  const el=document.getElementById('flux-list');if(!el)return;
+ const sb=document.getElementById('flux-sel');if(sb)sb.innerHTML=fluxSelBar();
  const q=FLUX_Q.trim().toLowerCase();
  let list=S.tx.filter(x=>x.type===FLUX&&exYFilter(x.date));
  if(FLUX_M)list=list.filter(x=>x.date.slice(0,7)===FLUX_M);
@@ -1195,7 +1385,7 @@ function saveProd(id){
 }
 
 /* ===== Factures ===== */
-let INV_LINES=[],INV_FROM_TX=null,INV_DATE=null,FFILT='all',FQ='',FMM='',FSORT='num',FDIR=-1;
+let INV_LINES=[],INV_FROM_TX=null,INV_DATE=null,INV_EDIT=null,FFILT='all',FQ='',FMM='',FSORT='num',FDIR=-1;
 /* ===== Stock : tableau de bord & historique ===== */
 let STKTAB='prod';const CHS={};
 function stkTabs(){return `<div class="tabs"><button ${STKTAB==='prod'?'class="on"':`onclick="STKTAB='prod';R.stock()"`}>Produits</button><button ${STKTAB==='dash'?'class="on"':`onclick="STKTAB='dash';R.stock()"`}>Tableau de bord</button><button ${STKTAB==='hist'?'class="on"':`onclick="STKTAB='hist';R.stock()"`}>Historique</button></div>`;}
@@ -1431,10 +1621,11 @@ function renderFactTable(){
   const t=invTotals(iv),reg=invPaid(iv),sol=Math.max(0,t.ttc-reg),st=invStatus(iv);
   if(st!=='cancel'&&st!=='pro'){tT+=t.ttc;tR+=reg;}
   const chip=st==='pro'?'<span class="chip" style="background:#E8F0FB;color:#2456A6">Pro forma</span>':st==='cancel'?'<span class="chip" style="background:#ECE8DE;color:#8a8578">Annulée</span>':st==='paid'?'<span class="chip chip-g">Payée</span>':st==='part'?'<span class="chip chip-a">Partielle</span>':'<span class="chip chip-r">Impayée</span>';
-  return `<tr><td><b>${esc(iv.num)}</b></td><td>${dateLabel(iv.date)}</td><td>${esc(iv.client)}</td><td style="text-align:right">${NF.format(t.ttc)}</td><td style="text-align:right">${NF.format(reg)}</td><td style="text-align:right;font-weight:800;color:${sol>0?'var(--rouge)':'var(--vert)'}">${NF.format(sol)}</td><td>${chip}</td><td style="white-space:nowrap"><button class="btn btn-sm btn-o" onclick="invPreview('${iv.id}')">Aperçu</button> ${st==='pro'?`<button class="btn btn-sm btn-p adm" onclick="proToDef('${iv.id}')">→ Définitive</button>`:''} ${st!=='cancel'&&st!=='pro'&&sol>0?`<button class="btn btn-sm btn-p adm" onclick="invPayOpen('${iv.id}')">Encaisser</button>`:''} ${(st==='pro'||(st!=='cancel'&&reg<=0))?`<button class="btn btn-sm btn-d adm act-del" onclick="invDel('${iv.id}')">Supprimer</button>`:''} ${st!=='cancel'&&st!=='pro'&&reg>0?`<button class="btn btn-sm btn-d adm act-del" onclick="invCancelOpen('${iv.id}')">Annuler</button>`:''}</td></tr>`;
+  return `<tr><td class="adm"><input type="checkbox" style="width:auto" ${SELIV.indexOf(iv.id)>=0?'checked':''} onchange="selInv('${iv.id}',this.checked)"></td><td><b>${esc(iv.num)}</b></td><td>${dateLabel(iv.date)}</td><td>${esc(iv.client)}</td><td style="text-align:right">${NF.format(t.ttc)}</td><td style="text-align:right">${NF.format(reg)}</td><td style="text-align:right;font-weight:800;color:${sol>0?'var(--rouge)':'var(--vert)'}">${NF.format(sol)}</td><td>${chip}</td><td style="white-space:nowrap"><button class="btn btn-sm btn-o" onclick="invPreview('${iv.id}')">Aperçu</button> ${st==='pro'?`<button class="btn btn-sm btn-p adm" onclick="proToDef('${iv.id}')">→ Définitive</button>`:''} ${st!=='cancel'&&st!=='pro'&&sol>0?`<button class="btn btn-sm btn-p adm" onclick="invPayOpen('${iv.id}')">Encaisser</button>`:''} ${(st!=='cancel'&&reg<=0)?`<button class="btn btn-sm btn-o adm act-edit" onclick="invEdit('${iv.id}')">Modifier</button>`:''} ${(st==='pro'||(st!=='cancel'&&reg<=0))?`<button class="btn btn-sm btn-d adm act-del" onclick="invDel('${iv.id}')">Supprimer</button>`:''} ${st!=='cancel'&&st!=='pro'&&reg>0?`<button class="btn btn-sm btn-d adm act-del" onclick="invCancelOpen('${iv.id}')">Annuler</button>`:''}</td></tr>`;
  }).join('');
  document.getElementById('fact-tot').innerHTML='<b>'+list.length+'</b> facture(s) — Total TTC : <b>'+fmt(tT)+'</b> · Réglé : <b>'+fmt(tR)+'</b> · Reste dû : <b style="color:'+(tT-tR>0.5?'var(--rouge)':'var(--vert)')+'">'+fmt(Math.max(0,tT-tR))+'</b>';
- el.innerHTML=`<table><tr>
+ el.innerHTML=factSelBar()+`<table><tr>
+  <th class="adm"></th>
   <th class="thsort" onclick="setFactSort('num')">N°${ar('num')}</th>
   <th class="thsort" onclick="setFactSort('date')">Date${ar('date')}</th>
   <th class="thsort" onclick="setFactSort('client')">Client${ar('client')}</th>
@@ -1445,7 +1636,16 @@ function renderFactTable(){
 }
 function exportFactXls(){
  if(!window.XLSX){toast('Module Excel non chargé — connectez-vous une fois à Internet');return;}
- const rows=factList().map(iv=>{const t=invTotals(iv),reg=invPaid(iv);return{'N°':iv.num,'Date':iv.date,'Client':iv.client,'Téléphone':iv.phone||'','Remise':t.remise||0,'Total TTC':t.ttc,'Réglé':reg,'Reste dû':Math.max(0,t.ttc-reg),'Statut':invStatus(iv)==='pro'?'Pro forma':invStatus(iv)==='cancel'?'Annulée':invStatus(iv)==='paid'?'Payée':invStatus(iv)==='part'?'Partielle':'Impayée'};});
+ const rows=[];
+ factList().forEach(iv=>{
+  const t=invTotals(iv);
+  const ls=(iv.lines&&iv.lines.length)?iv.lines:[{label:'',qty:'',pu:''}];
+  ls.forEach((l,i)=>{
+   rows.push({'Date':iv.date,'N° de pièce':iv.num,'Client':iv.client,'Téléphone':iv.phone||'',
+    'Produit':l.label||'','Quantité':l.qty===''?'':l.qty,'Prix unitaire':l.pu===''?'':l.pu,
+    'Réduction commerciale':i===0?(t.remise||0):'','TVA':i===0?(iv.tva||0):'','Montant TTC':i===0?t.ttc:''});
+  });
+ });
  const wb=XLSX.utils.book_new();
  XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(rows),'Suivi factures');
  XLSX.writeFile(wb,'suivi-factures-'+todayStr()+'.xlsx');
@@ -1463,9 +1663,14 @@ function exportFactPdf(){
  const right={halign:'right'};
  let tT=0,tR=0;
  const body=factList().map(iv=>{const t=invTotals(iv),reg=invPaid(iv);if(invStatus(iv)!=='cancel'&&invStatus(iv)!=='pro'){tT+=t.ttc;tR+=reg;}
-  return[iv.num,dateLabel(iv.date),iv.client,{content:pdfN(t.ttc),styles:right},{content:pdfN(reg),styles:right},{content:pdfN(Math.max(0,t.ttc-reg)),styles:right},invStatus(iv)==='pro'?'Pro forma':invStatus(iv)==='cancel'?'Annulée':invStatus(iv)==='paid'?'Payée':invStatus(iv)==='part'?'Partielle':'Impayée'];});
+  return[dateLabel(iv.date),iv.num,iv.client,iv.phone||'',(iv.lines||[]).map(l=>l.label).filter(Boolean).join(', ').slice(0,42),
+   {content:(iv.lines||[]).reduce((a,l)=>a+(l.qty||0),0)||'',styles:right},
+   {content:(iv.lines&&iv.lines.length===1)?pdfN(iv.lines[0].pu):'',styles:right},
+   {content:t.remise?pdfN(t.remise):'',styles:right},
+   {content:(iv.tva||0)+' %',styles:right},
+   {content:pdfN(t.ttc),styles:right}];});
  doc.autoTable({startY:30,margin:{left:14,right:14},styles:{font:'helvetica',fontSize:8.5},headStyles:{fillColor:[14,90,69]},alternateRowStyles:{fillColor:[250,248,244]},
-  head:[['N°','Date','Client',{content:'TTC ('+S.company.symbol+')',styles:right},{content:'Réglé',styles:right},{content:'Reste dû',styles:right},'Statut']],
+  head:[['Date','N° de pièce','Client','Téléphone','Produit','Qté','P.U.','Réduction','TVA','TTC ('+S.company.symbol+')']],
   body:body,
   foot:[['','','TOTAL',{content:pdfN(tT),styles:right},{content:pdfN(tR),styles:right},{content:pdfN(Math.max(0,tT-tR)),styles:right},'']],
   footStyles:{fillColor:[247,243,236],textColor:[28,36,32],fontStyle:'bold'}});
@@ -1483,11 +1688,28 @@ function invModal(title,hint){
  <div class="grid2"><div><label>Réduction commerciale</label><select id="iv-dt" onchange="invTotalPrev()"><option value="none">Aucune</option><option value="amt">Montant fixe (${S.company.symbol})</option><option value="pct">Pourcentage (%)</option></select></div><div><label>Valeur de la réduction</label><input id="iv-dv" type="number" min="0" value="0" oninput="invTotalPrev()"></div></div>
  <label>TVA (%) — laissez 0 si non applicable</label><input id="iv-tva" type="number" min="0" value="0" oninput="invTotalPrev()">
  <div id="iv-total" class="mt" style="font-weight:800"></div>
- ${INV_FROM_TX?`<button class="btn btn-p btn-full mt" onclick="saveInvoice('def')">Générer la facture</button>`:`<div class="grid2 mt"><button class="btn btn-o" onclick="saveInvoice('pro')">Facture Pro forma</button><button class="btn btn-p" onclick="saveInvoice('def')">Facture Définitive</button></div>`}`);
+ ${INV_EDIT?`<button class="btn btn-p btn-full mt" onclick="saveInvoice('edit')">Enregistrer les modifications</button>`:INV_FROM_TX?`<button class="btn btn-p btn-full mt" onclick="saveInvoice('def')">Générer la facture</button>`:`<div class="grid2 mt"><button class="btn btn-o" onclick="saveInvoice('pro')">Facture Pro forma</button><button class="btn btn-p" onclick="saveInvoice('def')">Facture Définitive</button></div>`}`);
  renderInvLines();
 }
+function invEdit(id){
+ const iv=S.invoices.find(x=>x.id===id);if(!iv)return;
+ if(iv.cancelled){toast('Une facture annulée ne peut pas être modifiée');return;}
+ if(invPaid(iv)>0){toast('Modification impossible : des règlements sont déjà enregistrés. Annulez la facture ou ajustez le règlement.');return;}
+ if(exGuard(iv.date))return;
+ INV_FROM_TX=null;INV_EDIT=id;INV_DATE=iv.date;
+ INV_LINES=iv.lines.map(l=>({label:l.label,qty:l.qty,pu:l.pu,productId:l.productId||''}));
+ invModal((iv.proforma?'Modifier la pro forma ':'Modifier la facture ')+iv.num,'Le numéro de pièce <b>'+esc(iv.num)+'</b> est conservé. Les quantités déjà retirées du stock sont recalculées automatiquement.');
+ const set=(k,v)=>{const el=document.getElementById(k);if(el)el.value=v;};
+ set('iv-client',iv.client);
+ set('iv-tel',iv.phone||'');
+ const cli=S.clients.find(c=>c.id===iv.clientId);
+ set('iv-addr',cli?(cli.address||''):'');
+ set('iv-tva',iv.tva||0);
+ if(iv.disc&&iv.disc.v>0){set('iv-dt',iv.disc.t);set('iv-dv',iv.disc.v);}
+ invTotalPrev();
+}
 function newInvoice(){
- INV_FROM_TX=null;INV_DATE=null;
+ INV_FROM_TX=null;INV_DATE=null;INV_EDIT=null;
  INV_LINES=[{label:'',qty:1,pu:0,productId:''}];
  invModal('Nouvelle facture','');
 }
@@ -1497,7 +1719,7 @@ function invoiceFromTx(txId){
  if(t.advance){toast('Une avance ne se refacture pas — elle s’impute lors du règlement d’une future facture');return;}
  const p=t.productId?S.products.find(q=>q.id===t.productId):null;
  const qty=t.qty||1;
- INV_FROM_TX=txId;INV_DATE=t.date;
+ INV_FROM_TX=txId;INV_DATE=t.date;INV_EDIT=null;
  INV_LINES=[{label:t.desc||(p?p.name:t.cat),qty:qty,pu:Math.round(t.amount/qty),productId:''}];
  invModal('Facture depuis encaissement','La facture sera marquée <b>Payée</b> et liée à cet encaissement — aucun nouveau flux ni mouvement de stock ne sera créé.');
 }
@@ -1545,6 +1767,30 @@ function saveInvoice(kind){
  const fromTx=INV_FROM_TX?S.tx.find(x=>x.id===INV_FROM_TX):null;
  const proforma=(kind==='pro')&&!fromTx;
  if(exGuard((document.getElementById('iv-date')||{}).value||todayStr()))return;
+ if(INV_EDIT){
+  const old=S.invoices.find(x=>x.id===INV_EDIT);
+  if(!old){INV_EDIT=null;toast('Facture introuvable');return;}
+  if(invPaid(old)>0){toast('Modification impossible : des règlements ont été enregistrés entre-temps');return;}
+  if(exGuard(old.date))return;
+  const t0=invTotals(old);
+  if(!old.proforma)old.lines.forEach(l=>{if(l.productId){const p=S.products.find(x=>x.id===l.productId);if(p){p.qty+=l.qty;smov(p.id,'in',l.qty,l.pu||0,'Modification facture '+old.num);}}});
+  if(!old.proforma){for(const l of lines){if(l.productId){const p=S.products.find(x=>x.id===l.productId);if(p&&p.qty<l.qty&&!confirm('Stock insuffisant pour '+p.name+' ('+p.qty+' disponible(s)). Enregistrer quand même ?')){
+   old.lines.forEach(o=>{if(o.productId){const q=S.products.find(x=>x.id===o.productId);if(q){q.qty=Math.max(0,q.qty-o.qty);smov(q.id,'out',o.qty,o.pu||0,'Modification annulée '+old.num);}}});return;}}}}
+  old.client=client;old.clientId=cli.id;
+  old.phone=document.getElementById('iv-tel').value.trim();
+  old.date=document.getElementById('iv-date').value||old.date;
+  old.lines=lines;
+  old.tva=+document.getElementById('iv-tva').value||0;
+  old.disc=(function(){const dt=(document.getElementById('iv-dt')||{}).value||'none';const dv=+((document.getElementById('iv-dv')||{}).value)||0;return(dt!=='none'&&dv>0)?{t:dt,v:dv}:null;})();
+  if(!old.proforma)lines.forEach(l=>{if(l.productId){const p=S.products.find(x=>x.id===l.productId);if(p){p.qty=Math.max(0,p.qty-l.qty);smov(p.id,'out',l.qty,l.pu||0,'Modification facture '+old.num);}}});
+  const t1=invTotals(old);
+  old.hist=Array.isArray(old.hist)?old.hist:[];
+  old.hist.push({d:new Date().toISOString(),by:CUR_USER_LBL(),from:t0.ttc,to:t1.ttc});
+  log('Facture modifiée : '+old.num+' — '+client+(Math.abs(t1.ttc-t0.ttc)>0.5?' ('+fmt(t0.ttc)+' → '+fmt(t1.ttc)+')':''));
+  INV_EDIT=null;INV_DATE=null;
+  save();closeSheet('sheet-modal');if(R[CUR])R[CUR]();toast('Facture '+old.num+' modifiée');
+  return;
+ }
  if(!fromTx&&!proforma){for(const l of lines){if(l.productId){const p=S.products.find(x=>x.id===l.productId);if(p&&p.qty<l.qty){toast('Stock insuffisant pour '+p.name+' ('+p.qty+' dispo)');return;}}}}
  const pfx=S.settings.invPrefix||initialsOf(S.company.name);
  const ivDate=document.getElementById('iv-date').value||defDate();
@@ -1750,7 +1996,7 @@ R.set=function(){
   <label class="mt adm" style="display:block;margin-top:1rem"><span class="btn btn-o btn-full" style="display:flex">Importer une sauvegarde (migration)</span><input type="file" accept=".json,application/json" style="display:none" onchange="restore(this)"></label>
   <p class="fine mt">La sauvegarde cloud est automatique. L’archive JSON sert de copie personnelle et permet de migrer les données d’une installation Trezo Classique vers le cloud.</p>
   <button class="btn btn-d btn-full mt adm act-del" onclick="resetAll()">Vider les données de l’entreprise</button></div>
- <p class="fine" style="text-align:center;margin:.4rem 0 1.2rem">Trezo Cloud v3.1 — édition multi-utilisateurs</p>`;
+ <p class="fine" style="text-align:center;margin:.4rem 0 1.2rem">Trezo Cloud v3.3 — édition multi-utilisateurs</p>`;
  if(MYROLE==='owner')loadMembers();
 };
 function setLogo(inp){const f=inp.files[0];if(!f)return;resizeImg(f,url=>{S.company.logo=url;document.getElementById('s-logo-prev').src=url;save();renderHeader();toast('Logo mis à jour');});}
@@ -1897,6 +2143,30 @@ function exCreateNext(){
  save();renderExSel();R.set();toast('Exercice '+y+' ouvert par anticipation — la clôture de '+max+' y reportera automatiquement les soldes (RAN) et le stock');
 }
 /* ===== Historique des mouvements de stock (socle) ===== */
+/* ===== Numéros de pièce des flux ===== */
+const PN_PFX={in:'ENC',out:'DEC',xfer:'TRF'};
+function nextPnum(kind,year){
+ S.settings.txSeqY=S.settings.txSeqY||{};
+ const key=kind+'-'+year;
+ const n=(S.settings.txSeqY[key]||0)+1;
+ S.settings.txSeqY[key]=n;
+ return PN_PFX[kind]+'-'+year+'-'+String(n).padStart(3,'0');
+}
+function ensurePnums(){
+ if(!Array.isArray(S.tx))return;
+ const miss=S.tx.filter(x=>!x.pnum);
+ if(!miss.length)return;
+ miss.sort((a,b)=>String(a.date).localeCompare(String(b.date))||String(a.id).localeCompare(String(b.id)));
+ miss.forEach(x=>{
+  if(x.pnum)return;
+  const y=String(x.date||todayStr()).slice(0,4);
+  if(x.xfer&&x.xid){
+   const tw=S.tx.find(q=>q.xid===x.xid&&q.pnum);
+   if(tw){x.pnum=tw.pnum;return;}
+  }
+  x.pnum=nextPnum(x.xfer?'xfer':x.type,y);
+ });
+}
 function smov(pid,type,qty,pu,ref,d){
  if(!qty||qty<0)return;
  const p=S.products.find(x=>x.id===pid);
@@ -2088,8 +2358,11 @@ let IMP={rows:[],errors:[]};
 const stripAcc=s=>String(s==null?'':s).normalize('NFD').replace(/[\u0300-\u036f]/g,'');
 function downloadTpl(){
  if(!window.XLSX){toast('Module Excel non chargé — connectez-vous une fois à Internet');return;}
- const ws=XLSX.utils.aoa_to_sheet([['Date','Type','Montant','Catégorie','Compte','Description'],['2026-07-01','Encaissement',150000,'Ventes','Caisse','Vente comptoir'],['02/07/2026','Décaissement',40000,'Transport','Wave','Carburant semaine']]);
- ws['!cols']=[{wch:12},{wch:15},{wch:12},{wch:16},{wch:14},{wch:28}];
+ const ws=XLSX.utils.aoa_to_sheet([
+  ['Date','N° de pièce','Type','Catégorie','Description','Client','Produit','Montant TTC','Compte'],
+  ['2026-07-01','','Encaissement','Ventes','Vente comptoir','Mamy Gueye','Sac de riz 50 kg',150000,'Caisse'],
+  ['02/07/2026','','Décaissement','Transport','Carburant semaine','','',40000,'Wave']]);
+ ws['!cols']=[{wch:12},{wch:15},{wch:15},{wch:16},{wch:28},{wch:20},{wch:22},{wch:14},{wch:14}];
  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Flux');
  XLSX.writeFile(wb,'trezo-modele-flux.xlsx');
 }
@@ -2135,8 +2408,9 @@ function handleImport(inp){
    if(rows.length>5000){res.innerHTML='<div class="msg-err">Fichier trop volumineux ('+rows.length+' lignes, maximum 5 000).</div>';return;}
    const map={};
    Object.keys(rows[0]).forEach(k=>{const n=stripAcc(k).toLowerCase().trim();
-    if(n==='date')map.date=k;else if(n==='type')map.type=k;else if(n==='montant'||n==='amount')map.amt=k;
-    else if(n.indexOf('categ')===0)map.cat=k;else if(n.indexOf('desc')===0||n==='libelle')map.desc=k;else if(n.indexOf('compte')===0||n==='mode')map.acc=k;});
+    if(n==='date')map.date=k;else if(n==='type')map.type=k;else if(n==='montant'||n==='amount'||n.indexOf('montant')===0)map.amt=k;
+    else if(n.indexOf('categ')===0)map.cat=k;else if(n.indexOf('desc')===0||n==='libelle')map.desc=k;else if(n.indexOf('compte')===0||n==='mode')map.acc=k;
+    else if(n.indexOf('client')===0)map.cli=k;else if(n.indexOf('produit')===0)map.prod=k;else if(n.indexOf('piece')>=0)map.pnum=k;});
    const miss=['date','type','amt'].filter(c=>!map[c]);
    if(miss.length){const noms={date:'Date',type:'Type',amt:'Montant'};res.innerHTML='<div class="msg-err">Structure invalide — colonne(s) manquante(s) : <b>'+miss.map(c=>noms[c]).join(', ')+'</b>. Téléchargez le modèle pour voir le format attendu.</div>';return;}
    IMP={rows:[],errors:[]};
@@ -2150,7 +2424,13 @@ function handleImport(inp){
     if(!cat)cat='Autre';
     let iacc=null;
     if(map.acc){const an=stripAcc(String(row[map.acc])).toLowerCase().trim();const fa=S.accounts.find(x=>stripAcc(x.name).toLowerCase()===an);if(fa)iacc=fa.id;}
-    IMP.rows.push({type:t,amount:a,date:d,cat:cat,acc:iacc,desc:map.desc?String(row[map.desc]).trim().slice(0,120):''});
+    let icli=null;
+    if(map.cli){const cn=String(row[map.cli]).trim();
+     if(cn){let fc=S.clients.find(x=>cliFull(x).toLowerCase()===cn.toLowerCase());icli=fc?fc.id:{__new:cn};}}
+    let iprod=null;
+    if(map.prod){const pn=stripAcc(String(row[map.prod])).toLowerCase().trim();
+     if(pn){const fp=S.products.find(x=>stripAcc(x.name).toLowerCase()===pn);if(fp)iprod=fp.id;}}
+    IMP.rows.push({type:t,amount:a,date:d,cat:cat,acc:iacc,cli:icli,prod:iprod,pnum:map.pnum?String(row[map.pnum]).trim():'',desc:map.desc?String(row[map.desc]).trim().slice(0,120):''});
    });
    const errHtml=IMP.errors.length?'<div class="msg-err" style="white-space:normal">'+IMP.errors.slice(0,10).map(esc).join('<br>')+(IMP.errors.length>10?'<br>… et '+(IMP.errors.length-10)+' autre(s) erreur(s)':'')+'</div>':'';
    res.innerHTML='<div class="'+(IMP.errors.length?'msg-err':'msg-ok')+'" style="margin-top:.8rem">'+IMP.rows.length+' ligne(s) valide(s) · '+IMP.errors.length+' erreur(s)</div>'+errHtml+(IMP.rows.length?'<button class="btn btn-p btn-full mt" onclick="doImport()">Importer les '+IMP.rows.length+' opération(s) valide(s)</button>':'');
@@ -2160,7 +2440,12 @@ function handleImport(inp){
 }
 function doImport(){
  if(!IMP.rows.length)return;
- IMP.rows.forEach(x=>S.tx.push({id:uid(),type:x.type,amount:x.amount,cat:x.cat,desc:x.desc,date:x.date,acc:x.acc||null,productId:null,qty:null}));
+ IMP.rows.forEach(x=>{
+  let cid=null;
+  if(x.cli&&x.cli.__new){const nc={id:uid(),name:x.cli.__new,firstname:'',phone:'',address:''};S.clients.push(nc);cid=nc.id;}
+  else if(x.cli)cid=x.cli;
+  S.tx.push({id:uid(),type:x.type,amount:x.amount,cat:x.cat,desc:x.desc,date:x.date,acc:x.acc||null,clientId:cid,pnum:x.pnum||undefined,productId:x.prod||null,qty:null});
+ });
  log('Import de '+IMP.rows.length+' opération(s) depuis un fichier');
  save();closeSheet('sheet-modal');R.flux();toast(IMP.rows.length+' opérations importées');
  IMP={rows:[],errors:[]};
@@ -2257,7 +2542,8 @@ function fluxExportRows(){
   return true;
  }).sort((a,b)=>a.date<b.date?-1:1).map(x=>{
   const cc=x.clientId?S.clients.find(q=>q.id===x.clientId):null;
-  return{'Date':x.date,'Type':x.type==='in'?'Encaissement':'Décaissement','Catégorie':x.cat,'Description':x.desc||'','Client':cc?cliFull(cc):'','Compte':accName(accOf(x)),'Montant':x.type==='in'?x.amount:-x.amount};
+  const pp=x.productId?S.products.find(q=>q.id===x.productId):null;
+  return{'Date':x.date,'N° de pièce':x.pnum||'','Type':x.type==='in'?'Encaissement':'Décaissement','Catégorie':x.cat,'Description':x.desc||'','Client':cc?cliFull(cc):'','Produit':pp?pp.name:'','Montant TTC':x.type==='in'?x.amount:-x.amount,'Compte':accName(accOf(x))};
  });
 }
 function fluxExport(fmt){
@@ -2267,7 +2553,7 @@ function fluxExport(fmt){
   if(!window.XLSX){toast('Module Excel non chargé — connectez-vous une fois à Internet');return;}
   const wb=XLSX.utils.book_new();
   const ws=XLSX.utils.json_to_sheet(rows);
-  ws['!cols']=[{wch:11},{wch:13},{wch:18},{wch:30},{wch:20},{wch:14},{wch:13}];
+  ws['!cols']=[{wch:11},{wch:15},{wch:14},{wch:18},{wch:30},{wch:20},{wch:22},{wch:14},{wch:14}];
   XLSX.utils.book_append_sheet(wb,ws,'Flux');
   XLSX.writeFile(wb,'flux-trezo.xlsx');
  }else if(fmt==='csv'){
@@ -2283,9 +2569,9 @@ function fluxExport(fmt){
   const d1=document.getElementById('fx-d1').value,d2=document.getElementById('fx-d2').value;
   doc.setFontSize(14);doc.text('Flux de trésorerie — '+S.company.name,14,14);
   doc.setFontSize(9);doc.text('Période : '+(d1||'début')+' → '+(d2||'aujourd’hui'),14,20);
-  const tot=rows.reduce((a,r)=>a+r['Montant'],0);
-  doc.autoTable({startY:26,head:[['Date','Type','Catégorie','Description','Client','Compte','Montant']],
-   body:rows.map(r=>[r['Date'],r['Type'],r['Catégorie'],r['Description'],r['Client'],r['Compte'],pdfN(r['Montant'])]),
+  const tot=rows.reduce((a,r)=>a+r['Montant TTC'],0);
+  doc.autoTable({startY:26,head:[['Date','N° pièce','Type','Catégorie','Description','Client','Produit','Montant TTC','Compte']],
+   body:rows.map(r=>[r['Date'],r['N° de pièce'],r['Type'],r['Catégorie'],r['Description'],r['Client'],r['Produit'],pdfN(r['Montant TTC']),r['Compte']]),
    styles:{fontSize:8},headStyles:{fillColor:[14,90,69]}});
   doc.setFontSize(10);doc.text('Solde net de la sélection : '+pdfN(tot)+' '+S.company.symbol,14,doc.lastAutoTable.finalY+8);
   doc.save('flux-trezo.pdf');
