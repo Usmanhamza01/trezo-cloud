@@ -233,6 +233,7 @@ body.readonly .ro-banner{display:block}
 const CONFIG=window.TREZO_CONFIG||{};
 const CURRENCIES=[["XOF","FCFA","Franc CFA (UEMOA)"],["XAF","FCFA","Franc CFA (CEMAC)"],["MAD","DH","Dirham marocain"],["TND","DT","Dinar tunisien"],["DZD","DA","Dinar algérien"],["EGP","E£","Livre égyptienne"],["NGN","₦","Naira nigérian"],["GHS","GH₵","Cedi ghanéen"],["KES","KSh","Shilling kényan"],["TZS","TSh","Shilling tanzanien"],["UGX","USh","Shilling ougandais"],["RWF","FRw","Franc rwandais"],["GNF","FG","Franc guinéen"],["CDF","FC","Franc congolais"],["MRU","UM","Ouguiya mauritanien"],["ZAR","R","Rand sud-africain"],["ETB","Br","Birr éthiopien"],["USD","$","Dollar US"],["EUR","€","Euro"]];
 const CAT_IN=["Ventes","Avance client","Prestations de services","Remboursement","Apport","Autre"];
+const CLI_CATS=["Ventes","Avance client","Prestations de services"];
 const CAT_OUT=["Achats fournisseurs","Loyer","Salaires","Transport","Électricité & eau","Internet & téléphone","Impôts & taxes","Entretien","Autre",'Charges fixes'];
 const DEFAULT={v:2,company:{name:"",currency:"XOF",symbol:"FCFA",logo:null},license:null,products:[],accounts:[],clients:[],charges:[],chgPays:[],exercises:[],stockMov:[],tx:[],employees:[],salPays:[],salAdv:[],goals:[],invoices:[],journal:[],settings:{pin:null,readOnly:false,invSeq:0}};
 const LOGO='data:image/svg+xml;utf8,'+encodeURIComponent("<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect width='192' height='192' rx='42' fill='#0E5A45'/><rect x='46' y='104' width='22' height='42' rx='6' fill='#F2B33D'/><rect x='78' y='84' width='22' height='62' rx='6' fill='#7FC8A9'/><rect x='110' y='58' width='22' height='88' rx='6' fill='#FFFFFF'/><rect x='38' y='36' width='116' height='16' rx='6' fill='#FFFFFF'/></svg>");
@@ -895,9 +896,9 @@ R.flux=function(){
   <h3>${FLUX==='in'?'Nouvel encaissement':'Nouveau décaissement'}</h3>
   ${FLUX==='in'&&S.products.length?`<label>Produit vendu (optionnel — met le stock à jour)</label><select id="f-prod" onchange="fluxProd()"><option value="">— Saisie libre —</option>${S.products.map(p=>`<option value="${p.id}">${esc(p.name)} (${NF.format(p.price)} ${S.company.symbol} · stock ${p.qty})</option>`).join('')}</select><div id="f-qty-wrap" style="display:none"><label>Quantité</label><input id="f-qty" type="number" min="1" value="1" oninput="fluxProd()"></div>`:''}
   <div class="grid2"><div><label>Montant (${S.company.symbol})</label><input id="f-amt" type="number" min="0" inputmode="numeric"></div><div><label>Date</label><input id="f-date" type="date" value="${defDate()}"></div></div>
-  <label>Catégorie</label><select id="f-cat">${cats.map(c=>`<option>${c}</option>`).join('')}</select>
+  <label>Catégorie</label><select id="f-cat" onchange="fluxCatChange()">${cats.map(c=>`<option>${c}</option>`).join('')}</select>
   <label>Compte / mode</label><select id="f-acc">${S.accounts.map(a=>`<option value="${a.id}">${esc(a.name)}</option>`).join('')}</select>
-  ${FLUX==='in'?`<label>Client (obligatoire — créé automatiquement s’il n’existe pas)</label><input id="f-cli" list="dl-cli2" placeholder="Nom du client" oninput="fluxCliMatch()"><datalist id="dl-cli2">${S.clients.map(c=>`<option value="${esc(cliFull(c))}">`).join('')}</datalist><div id="f-cli-hint" class="fine"></div><div id="f-inv-wrap"></div>`:''}
+  ${FLUX==='in'?`<label id="f-cli-lbl">Client (obligatoire pour une vente — créé automatiquement s’il n’existe pas)</label><input id="f-cli" list="dl-cli2" placeholder="Nom du client" oninput="fluxCliMatch()"><datalist id="dl-cli2">${S.clients.map(c=>`<option value="${esc(cliFull(c))}">`).join('')}</datalist><div id="f-cli-hint" class="fine"></div><div id="f-inv-wrap"></div>`:''}
   <label>Description (optionnel)</label><input id="f-desc" placeholder="${FLUX==='in'?'Ex. : Vente comptoir':'Ex. : Facture électricité juin'}">
   <button class="btn ${FLUX==='in'?'btn-p':'btn-d'} btn-full mt" onclick="addTx()">Enregistrer</button>
  </div>
@@ -938,17 +939,19 @@ function addTx(){
  let cliId=null,ADVFLAG=false;
  if(FLUX==='in'){
   const cliName=(document.getElementById('f-cli')||{value:''}).value.trim();
-  if(!cliName){toast('Sélectionnez ou saisissez le client concerné');return;}
-  let c=S.clients.find(x=>cliFull(x).toLowerCase()===cliName.toLowerCase());
-  if(!c){c={id:uid(),name:cliName,firstname:'',phone:'',address:''};S.clients.push(c);log('Client créé automatiquement depuis un encaissement : '+cliName);toast('Nouveau client « '+cliName+' » ajouté à la base');}
-  cliId=c.id;
+  const catv=(document.getElementById('f-cat')||{value:''}).value;
+  const needCli=CLI_CATS.indexOf(catv)>=0;
+  if(!cliName&&needCli){toast('Client requis pour un encaissement « '+catv+' » — saisissez-le, ou choisissez une autre catégorie (Remboursement, Apport…)');return;}
+  let c=cliName?S.clients.find(x=>cliFull(x).toLowerCase()===cliName.toLowerCase()):null;
+  if(!c&&cliName){c={id:uid(),name:cliName,firstname:'',phone:'',address:''};S.clients.push(c);log('Client créé automatiquement depuis un encaissement : '+cliName);toast('Nouveau client « '+cliName+' » ajouté à la base');}
+  cliId=c?c.id:null;
   const ivSel=document.getElementById('f-inv');
   const ivVal=ivSel?ivSel.value:'';
   if(ivVal&&ivVal!=='ADV'){payInvoiceFromFlux(ivVal,amt,document.getElementById('f-date').value||todayStr(),document.getElementById('f-acc').value,cliId);return;}
   const hasProd=!!((document.getElementById('f-prod')||{}).value);
-  const openInv=S.invoices.filter(i=>i.clientId===cliId&&!i.proforma&&!i.cancelled&&invStatus(i)!=='paid');
+  const openInv=cliId?S.invoices.filter(i=>i.clientId===cliId&&!i.proforma&&!i.cancelled&&invStatus(i)!=='paid'):[];
   if(!hasProd&&openInv.length&&ivVal!=='ADV'){toast('Ce client a des factures non soldées — sélectionnez la facture à régler, ou choisissez « Avance client »');return;}
-  if(!hasProd){
+  if(cliId&&!hasProd&&(catv==='Ventes'||catv==='Avance client')){
    ADVFLAG=true;
    const fc=document.getElementById('f-cat');if(fc)fc.value='Avance client';
    const fd=document.getElementById('f-desc');
@@ -2716,6 +2719,14 @@ function payInvoiceFromFlux(ivId,amt,d,acc,cliId){
  S.tx.push({id:uid(),type:'in',amount:amt,cat:'Ventes',desc:'Facture '+iv.num+' — '+iv.client+(iv.paid?'':' (acompte)'),date:d,acc:acc,clientId:cliId||iv.clientId||null,ivId:iv.id,productId:null,qty:null});
  log('Encaissement facture '+iv.num+' depuis les Flux ('+accName(acc)+') : '+fmt(amt)+(iv.paid?' — facture soldée':' — reste dû '+fmt(Math.max(0,t.ttc-invPaid(iv)))));
  save();R.flux();toast(iv.paid?'Facture '+iv.num+' soldée ✓':'Acompte enregistré — reste dû '+fmt(Math.max(0,t.ttc-invPaid(iv))));
+}
+function fluxCatChange(){
+ const el=document.getElementById('f-cli-lbl');if(!el)return;
+ const catv=(document.getElementById('f-cat')||{value:''}).value;
+ const need=CLI_CATS.indexOf(catv)>=0;
+ el.textContent=need?'Client (obligatoire pour ce type d’encaissement — créé automatiquement s’il n’existe pas)':'Client (facultatif — laissez vide pour un remboursement, un apport…)';
+ const h=document.getElementById('f-cli-hint');
+ if(h&&!need&&!((document.getElementById('f-cli')||{value:''}).value.trim()))h.textContent='';
 }
 function fluxCliMatch(){
  const v=document.getElementById('f-cli').value.trim().toLowerCase();
