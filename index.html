@@ -1962,15 +1962,35 @@ async function invShare(id){
   }else{invPDF(id);toast('Partage direct indisponible sur cet appareil — le PDF a été téléchargé, vous pouvez le joindre manuellement.');}
  }catch(e){if(String(e).indexOf('AbortError')<0)toast('Partage annulé ou indisponible');}
 }
-function invWhatsApp(id){
+function isMobileDevice(){return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent||'');}
+async function invWhatsApp(id){
  const iv=S.invoices.find(x=>x.id===id);if(!iv)return;
  const t=invTotals(iv);
  const c=iv.clientId?S.clients.find(x=>x.id===iv.clientId):null;
  const tel=(iv.phone||(c&&c.phone)||'').replace(/[^0-9]/g,'');
- const msg=encodeURIComponent('Bonjour'+(iv.client?' '+iv.client:'')+',\n\nVeuillez trouver '+(iv.proforma?'notre pro forma':'votre facture')+' n°'+iv.num+' d\'un montant de '+fmt(t.ttc)+'.\n\n'+S.company.name+(S.company.tel?'\n'+S.company.tel:''));
- const url=tel?('https://wa.me/'+(tel.length<=9?'221'+tel:tel)+'?text='+msg):('https://wa.me/?text='+msg);
+ const telFull=tel?(tel.length<=9?'221'+tel:tel):'';
+ const texte='Bonjour'+(iv.client?' '+iv.client:'')+',\n\nVeuillez trouver '+(iv.proforma?'notre pro forma':'votre facture')+' n°'+iv.num+' d\'un montant de '+fmt(t.ttc)+'.\n\n'+S.company.name+(S.company.tel?'\n'+S.company.tel:'');
+ // MOBILE : partage natif avec le PDF attaché
+ if(isMobileDevice()){
+  try{
+   const doc=invBuildPDF(iv);
+   if(doc){
+    const blob=doc.output('blob');
+    const file=new File([blob],iv.num+'.pdf',{type:'application/pdf'});
+    if(navigator.canShare&&navigator.canShare({files:[file]})){
+     await navigator.share({files:[file],title:(iv.proforma?'Pro forma ':'Facture ')+iv.num,text:texte});
+     log((iv.proforma?'Pro forma':'Facture')+' envoyée via partage : '+iv.num);save();
+     return;
+    }
+   }
+  }catch(e){if(String(e).indexOf('AbortError')>=0)return;}
+  const url=telFull?('https://wa.me/'+telFull+'?text='+encodeURIComponent(texte)):('https://wa.me/?text='+encodeURIComponent(texte));
+  window.open(url,'_blank');setTimeout(()=>{invPDF(id);},400);return;
+ }
+ // ORDINATEUR : conversation ciblée + téléchargement du PDF
+ const url=telFull?('https://wa.me/'+telFull+'?text='+encodeURIComponent(texte)):('https://wa.me/?text='+encodeURIComponent(texte));
  window.open(url,'_blank');
- setTimeout(()=>{if(confirm('Le message WhatsApp est prêt. Télécharger aussi le PDF pour le joindre à la conversation ?'))invPDF(id);},400);
+ setTimeout(()=>{if(confirm('Sur ordinateur, WhatsApp Web ne permet pas de joindre le fichier automatiquement.\n\nTélécharger le PDF pour le glisser dans la conversation ?'))invPDF(id);},400);
  log('Envoi WhatsApp préparé : '+iv.num);save();
 }
 
@@ -2035,7 +2055,7 @@ R.set=function(){
   <label class="mt adm" style="display:block;margin-top:1rem"><span class="btn btn-o btn-full" style="display:flex">Importer une sauvegarde (migration)</span><input type="file" accept=".json,application/json" style="display:none" onchange="restore(this)"></label>
   <p class="fine mt">La sauvegarde cloud est automatique. L’archive JSON sert de copie personnelle et permet de migrer les données d’une installation Trezo Classique vers le cloud.</p>
   <button class="btn btn-d btn-full mt adm act-del" onclick="resetAll()">Vider les données de l’entreprise</button></div>
- <p class="fine" style="text-align:center;margin:.4rem 0 1.2rem">Trezo Cloud v3.5 — édition multi-utilisateurs</p>`;
+ <p class="fine" style="text-align:center;margin:.4rem 0 1.2rem">Trezo Cloud v3.6 — édition multi-utilisateurs</p>`;
  if(MYROLE==='owner')loadMembers();
 };
 function setLogo(inp){const f=inp.files[0];if(!f)return;resizeImg(f,url=>{S.company.logo=url;document.getElementById('s-logo-prev').src=url;save();renderHeader();toast('Logo mis à jour');});}
