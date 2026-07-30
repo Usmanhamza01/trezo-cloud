@@ -319,7 +319,7 @@ const VIEWS=[["dash","Tableau"],["flux","Flux"],["cli","Clients"],["sal","Charge
 let CUR='dash';
 const R={};
 function renderNav(){
- renderExSel();
+ applyTheme();renderExSel();
  const bottom=[["dash","Tableau"],["flux","Flux"],["fact","Factures"],["stock","Stocks"]];
  document.getElementById('bnav').innerHTML=bottom.filter(function(it){return permOf(it[0])!=='n';}).map(function(it){return '<button data-v="'+it[0]+'" onclick="go(\''+it[0]+'\')">'+IC[it[0]]+it[1]+'</button>';}).join('')+'<button onclick="openSheet(\'sheet-plus\')">'+IC.plus+'Plus</button>';
  document.getElementById('plus-items').innerHTML=[["cli","Clients"],["sal","Charges fixes"],["obj","Objectifs"],["jour","Journal"],["set","Réglages"]].filter(function(it){return permOf(it[0])!=='n';}).map(function(it){return '<button class="menu-it" onclick="closeSheet(\'sheet-plus\');go(\''+it[0]+'\')">'+IC[it[0]]+it[1]+'</button>';}).join('');
@@ -1901,9 +1901,15 @@ function proToDef(id){
  log('Pro forma '+old+' transformée en facture '+iv.num+' — '+iv.client);
  save();if(R[CUR])R[CUR]();toast('Facture '+iv.num+' créée');
 }
-function invPDF(id){
- if(!window.jspdf){toast('Module PDF non chargé — connectez-vous une fois à Internet');return;}
- const iv=S.invoices.find(x=>x.id===id);if(!iv)return;
+function applyTheme(){
+ const c=(S.company&&S.company.color)||'#0E5A45';
+ document.documentElement.style.setProperty('--vert',c);
+ try{const n=c.replace('#','');const r=parseInt(n.slice(0,2),16),g=parseInt(n.slice(2,4),16),b=parseInt(n.slice(4,6),16);
+  const dk='#'+[r,g,b].map(v=>Math.max(0,Math.round(v*0.72)).toString(16).padStart(2,'0')).join('');
+  document.documentElement.style.setProperty('--vert-fonce',dk);}catch(e){}
+}
+function invBuildPDF(iv){
+ if(!window.jspdf)return null;
  const t=invTotals(iv);
  const doc=new window.jspdf.jsPDF();
  if(S.company.logo){try{doc.addImage(S.company.logo,'PNG',14,12,22,22);}catch(e){}}
@@ -1935,8 +1941,37 @@ function invPDF(id){
  doc.text(arrLines,14,y);
  doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(130);
  doc.text('Document généré avec Trezo',14,287);
+ return doc;
+}
+function invPDF(id){
+ if(!window.jspdf){toast('Module PDF non chargé — connectez-vous une fois à Internet');return;}
+ const iv=S.invoices.find(x=>x.id===id);if(!iv)return;
+ const doc=invBuildPDF(iv);if(!doc)return;
  doc.save(iv.num+'.pdf');
  log('PDF généré : '+iv.num);save();
+}
+async function invShare(id){
+ const iv=S.invoices.find(x=>x.id===id);if(!iv)return;
+ try{
+  const doc=invBuildPDF(iv);if(!doc){toast('Module PDF non chargé');return;}
+  const blob=doc.output('blob');
+  const file=new File([blob],iv.num+'.pdf',{type:'application/pdf'});
+  if(navigator.canShare&&navigator.canShare({files:[file]})){
+   await navigator.share({files:[file],title:(iv.proforma?'Pro forma ':'Facture ')+iv.num,text:(iv.proforma?'Pro forma ':'Facture ')+iv.num+' — '+S.company.name});
+   log((iv.proforma?'Pro forma':'Facture')+' partagée : '+iv.num);save();
+  }else{invPDF(id);toast('Partage direct indisponible sur cet appareil — le PDF a été téléchargé, vous pouvez le joindre manuellement.');}
+ }catch(e){if(String(e).indexOf('AbortError')<0)toast('Partage annulé ou indisponible');}
+}
+function invWhatsApp(id){
+ const iv=S.invoices.find(x=>x.id===id);if(!iv)return;
+ const t=invTotals(iv);
+ const c=iv.clientId?S.clients.find(x=>x.id===iv.clientId):null;
+ const tel=(iv.phone||(c&&c.phone)||'').replace(/[^0-9]/g,'');
+ const msg=encodeURIComponent('Bonjour'+(iv.client?' '+iv.client:'')+',\n\nVeuillez trouver '+(iv.proforma?'notre pro forma':'votre facture')+' n°'+iv.num+' d\'un montant de '+fmt(t.ttc)+'.\n\n'+S.company.name+(S.company.tel?'\n'+S.company.tel:''));
+ const url=tel?('https://wa.me/'+(tel.length<=9?'221'+tel:tel)+'?text='+msg):('https://wa.me/?text='+msg);
+ window.open(url,'_blank');
+ setTimeout(()=>{if(confirm('Le message WhatsApp est prêt. Télécharger aussi le PDF pour le joindre à la conversation ?'))invPDF(id);},400);
+ log('Envoi WhatsApp préparé : '+iv.num);save();
 }
 
 /* ===== Journal ===== */
@@ -1962,6 +1997,7 @@ R.set=function(){
   <div class="grid2"><div><label>NINEA (optionnel)</label><input id="s-ninea" value="${esc(S.company.ninea||'')}"></div><div><label>RCCM (optionnel)</label><input id="s-rccm" value="${esc(S.company.rccm||'')}"></div></div>
   <div class="grid2"><div><label>Téléphone (optionnel)</label><input id="s-tel" value="${esc(S.company.tel||'')}"></div><div><label>E-mail (optionnel)</label><input id="s-email" value="${esc(S.company.email||'')}"></div></div>
   <label>Adresse (optionnel)</label><input id="s-addr" value="${esc(S.company.address||'')}">
+  <label>Couleur de marque</label><div style="display:flex;gap:.6rem;align-items:center"><input id="s-color" type="color" value="${S.company.color||'#0E5A45'}" style="width:56px;height:40px;padding:2px;border-radius:10px;cursor:pointer"><span class="fine">Appliquée à l’interface et à l’entête de vos factures.</span></div>
   <p class="fine" style="margin-top:.3rem">Ces renseignements apparaissent automatiquement en entête de vos factures.</p>
   <label>Initiales de numérotation des factures</label><input id="s-prefix" value="${esc(S.settings.invPrefix||initialsOf(S.company.name))}" maxlength="5" style="text-transform:uppercase">
   <label>Devise</label><select id="s-cur">${CURRENCIES.map(c=>`<option value="${c[0]}" ${S.company.currency===c[0]?'selected':''}>${c[2]} (${c[1]})</option>`).join('')}</select>
@@ -1999,11 +2035,12 @@ R.set=function(){
   <label class="mt adm" style="display:block;margin-top:1rem"><span class="btn btn-o btn-full" style="display:flex">Importer une sauvegarde (migration)</span><input type="file" accept=".json,application/json" style="display:none" onchange="restore(this)"></label>
   <p class="fine mt">La sauvegarde cloud est automatique. L’archive JSON sert de copie personnelle et permet de migrer les données d’une installation Trezo Classique vers le cloud.</p>
   <button class="btn btn-d btn-full mt adm act-del" onclick="resetAll()">Vider les données de l’entreprise</button></div>
- <p class="fine" style="text-align:center;margin:.4rem 0 1.2rem">Trezo Cloud v3.3 — édition multi-utilisateurs</p>`;
+ <p class="fine" style="text-align:center;margin:.4rem 0 1.2rem">Trezo Cloud v3.5 — édition multi-utilisateurs</p>`;
  if(MYROLE==='owner')loadMembers();
 };
 function setLogo(inp){const f=inp.files[0];if(!f)return;resizeImg(f,url=>{S.company.logo=url;document.getElementById('s-logo-prev').src=url;save();renderHeader();toast('Logo mis à jour');});}
 async function saveCompany(){
+ S.company.color=(document.getElementById('s-color')||{value:'#0E5A45'}).value;applyTheme();
  const n=document.getElementById('s-name').value.trim();
  if(n&&n!==S.company.name&&!confirm('Attention : les clés de licence sont liées au nom de l’entreprise. Après un changement de nom, les prochaines clés devront être générées avec le nouveau nom. Continuer ?'))return;
  const pfx=document.getElementById('s-prefix').value.trim().toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,5);
@@ -2501,7 +2538,7 @@ function arrete(iv){
 /* ===== Facture : aperçu identique au document final + impression ===== */
 function invDocHTML(iv){
  const t=invTotals(iv);
- return `<div class="inv-doc"><div class="inv-head">${S.company.logo?`<img src="${S.company.logo}" alt="">`:''}<div><div class="inv-co">${esc(S.company.name)}</div><div style="font-size:.72rem;color:#5E6B64;line-height:1.55;margin-top:.15rem">${[S.company.address||'',(S.company.tel?'Tél : '+S.company.tel:'')+(S.company.tel&&S.company.email?' · ':'')+(S.company.email||''),[(S.company.ninea?'NINEA : '+S.company.ninea:''),(S.company.rccm?'RCCM : '+S.company.rccm:'')].filter(Boolean).join(' · ')].filter(Boolean).map(esc).join('<br>')}</div><div class="inv-num">${iv.proforma?'FACTURE PRO FORMA ':'FACTURE '}${esc(iv.num)}${invStatus(iv)==='cancel'?' — ANNULÉE':invStatus(iv)==='paid'?' — PAYÉE':invStatus(iv)==='part'?' — PARTIELLEMENT RÉGLÉE':''}</div></div></div>
+ return `<div class="inv-doc"><div class="inv-head">${S.company.logo?`<img src="${S.company.logo}" alt="">`:''}<div><div class="inv-co" style="color:${esc(S.company.color||'#0E5A45')}">${esc(S.company.name)}</div><div style="font-size:.72rem;color:#5E6B64;line-height:1.55;margin-top:.15rem">${[S.company.address||'',(S.company.tel?'Tél : '+S.company.tel:'')+(S.company.tel&&S.company.email?' · ':'')+(S.company.email||''),[(S.company.ninea?'NINEA : '+S.company.ninea:''),(S.company.rccm?'RCCM : '+S.company.rccm:'')].filter(Boolean).join(' · ')].filter(Boolean).map(esc).join('<br>')}</div><div class="inv-num">${iv.proforma?'FACTURE PRO FORMA ':'FACTURE '}${esc(iv.num)}${invStatus(iv)==='cancel'?' — ANNULÉE':invStatus(iv)==='paid'?' — PAYÉE':invStatus(iv)==='part'?' — PARTIELLEMENT RÉGLÉE':''}</div></div></div>
  <div class="inv-meta"><div><b>Client :</b> ${esc(iv.client)}${iv.phone?'<br><b>Tél :</b> '+esc(iv.phone):''}${(function(){const c=iv.clientId?S.clients.find(x=>x.id===iv.clientId):null;return c&&c.address?'<br><b>Adresse :</b> '+esc(c.address):'';})()}</div><div><b>Date :</b> ${dateLabel(iv.date)}${invStatus(iv)==='part'?'<br><b>Réglé :</b> '+fmt(invPaid(iv))+' — <b>Reste dû :</b> '+fmt(invTotals(iv).ttc-invPaid(iv)):''}</div></div>
  <table class="inv-table"><thead><tr><th>Désignation</th><th style="text-align:right">Qté</th><th style="text-align:right">P.U. (${esc(S.company.symbol)})</th><th style="text-align:right">Total</th></tr></thead><tbody>${iv.lines.map(l=>`<tr><td>${esc(l.label)}</td><td style="text-align:right">${l.qty}</td><td style="text-align:right">${NF.format(l.pu)}</td><td style="text-align:right">${NF.format(l.qty*l.pu)}</td></tr>`).join('')}</tbody></table>
  <div class="inv-tot">${t.remise>0?`<div>Sous-total HT : ${fmt(t.htBrut)}</div><div>Réduction${iv.disc&&iv.disc.t==='pct'?' ('+iv.disc.v+' %)':''} : -${fmt(t.remise)}</div>`:''}<div>Total HT : ${fmt(t.ht)}</div>${iv.tva>0?`<div>TVA (${iv.tva} %) : ${fmt(t.tva)}</div>`:''}<div class="ttc">Total TTC : ${fmt(t.ttc)}</div></div>
@@ -2512,7 +2549,8 @@ function invPreview(id){
  const iv=S.invoices.find(x=>x.id===id);if(!iv)return;
  openModal(`<h2>Aperçu — ${esc(iv.num)} <button class="close" onclick="closeSheet('sheet-modal')">×</button></h2>
  <div style="background:var(--sable);padding:.8rem;border-radius:12px;overflow:auto">${invDocHTML(iv)}</div>
- <div class="grid2 mt"><button class="btn btn-p" onclick="invPrint('${id}')">Imprimer</button><button class="btn btn-o" onclick="invPDF('${id}')">Télécharger PDF</button></div>`);
+ <div class="grid2 mt"><button class="btn btn-p" onclick="invPrint('${id}')">Imprimer</button><button class="btn btn-o" onclick="invPDF('${id}')">Télécharger PDF</button></div>
+ <div class="grid2 mt"><button class="btn btn-o" onclick="invShare('${id}')">📤 Partager le PDF</button><button class="btn" style="background:#25D366;color:#fff" onclick="invWhatsApp('${id}')">Envoyer par WhatsApp</button></div>`);
 }
 function invPrint(id){
  const iv=S.invoices.find(x=>x.id===id);if(!iv)return;
@@ -2746,6 +2784,7 @@ R.cli=function(){
   <button class="btn btn-p btn-full mt" onclick="cliAdd()">Ajouter le client</button>
   <div class="grid2 mt"><button class="btn btn-o btn-sm" onclick="cliImport()">Importer Excel / CSV</button><button class="btn btn-o btn-sm" onclick="cliExport()">Exporter Excel</button></div></div>
  <div class="card"><h2>Base clients <span id="cli-count" class="fine"></span></h2>
+  <div class="adm" style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;margin:.3rem 0 .5rem"><label style="margin:0;text-transform:none;font-size:.8rem;display:flex;align-items:center;gap:.35rem"><input type="checkbox" style="width:auto" onchange="selCliAll(this.checked)"> Tout sélectionner</label><span class="fine" id="cli-selcount">${SELCLI.length?SELCLI.length+' sélectionné(s)':'Aucune sélection'}</span><button class="btn btn-sm btn-d act-del" onclick="bulkDelCli()">Supprimer la sélection</button></div>
   <input placeholder="Rechercher (nom, téléphone…)" value="${esc(CLIQ)}" oninput="CLIQ=this.value;renderCliList()" style="margin:.5rem 0 .8rem">
   <div class="grid2" style="margin-bottom:.6rem"><select onchange="CLIF_ST=this.value;renderCliList()"><option value="">Tous les clients</option><option value="due" ${CLIF_ST==='due'?'selected':''}>Avec solde restant dû</option><option value="ok" ${CLIF_ST==='ok'?'selected':''}>Soldés</option><option value="none" ${CLIF_ST==='none'?'selected':''}>Sans facture</option></select>
   <div class="grid2" style="gap:.4rem"><input type="date" title="Activité — du" value="${CLIF_D1}" onchange="CLIF_D1=this.value;renderCliList()"><input type="date" title="Activité — au" value="${CLIF_D2}" onchange="CLIF_D2=this.value;renderCliList()"></div></div>
@@ -2804,7 +2843,7 @@ function renderCliList(){
  document.getElementById('cli-count').textContent='('+list.length+')';
  el.innerHTML=list.map(c=>{
   const nb=S.invoices.filter(iv=>iv.clientId===c.id).length;
-  return `<div class="row"><div class="rmain"><div class="rt">${esc(cliFull(c))}</div><div class="rs">${esc(c.phone||'—')}${c.address?' · '+esc(c.address):''}${nb?' · '+nb+' facture(s)':''}</div></div><button class="btn btn-sm btn-o" onclick="cliView('${c.id}')">Suivi</button><button class="btn btn-sm btn-o adm act-edit" onclick="cliEdit('${c.id}')">Modifier</button><button class="btn btn-sm btn-d adm act-del" onclick="cliDel('${c.id}')">✕</button></div>`;
+  return `<div class="row">${IS_ADMIN&&IS_ADMIN()?`<input type="checkbox" style="width:auto;margin-right:.5rem" ${SELCLI.indexOf(c.id)>=0?'checked':''} onchange="selCli('${c.id}',this.checked)">`:''}<div class="rmain"><div class="rt">${esc(cliFull(c))}</div><div class="rs">${esc(c.phone||'—')}${c.address?' · '+esc(c.address):''}${nb?' · '+nb+' facture(s)':''}</div></div><button class="btn btn-sm btn-o" onclick="cliView('${c.id}')">Suivi</button><button class="btn btn-sm btn-o adm act-edit" onclick="cliEdit('${c.id}')">Modifier</button><button class="btn btn-sm btn-d adm act-del" onclick="cliDel('${c.id}')">✕</button></div>`;
  }).join('')||'<div class="empty">Aucun client. Ajoutez-en un ou importez votre fichier Excel.</div>';
 }
 function cliAdd(){
@@ -2827,6 +2866,20 @@ function cliSave(id){
  const n=document.getElementById('ce-name').value.trim();if(!n){toast('Nom requis');return;}
  c.name=n;c.firstname=document.getElementById('ce-first').value.trim();c.phone=document.getElementById('ce-tel').value.trim();c.address=document.getElementById('ce-addr').value.trim();
  log('Client modifié : '+cliFull(c));save();closeSheet('sheet-modal');renderCliList();toast('Client modifié');
+}
+let SELCLI=[];
+function selCli(id,on){SELCLI=SELCLI.filter(x=>x!==id);if(on)SELCLI.push(id);const b=document.getElementById('cli-selcount');if(b)b.textContent=SELCLI.length?SELCLI.length+' sélectionné(s)':'Aucune sélection';}
+function selCliAll(on){SELCLI=on?cliListFiltered().map(c=>c.id):[];renderCliList();}
+function bulkDelCli(){
+ if(!SELCLI.length){toast('Sélectionnez d’abord des clients');return;}
+ const list=S.clients.filter(c=>SELCLI.indexOf(c.id)>=0);
+ const avecFact=list.filter(c=>S.invoices.some(iv=>iv.clientId===c.id));
+ let msg='Supprimer '+list.length+' client(s) de la base ?';
+ if(avecFact.length)msg+='\n\n'+avecFact.length+' d’entre eux ont des factures : elles seront conservées mais ne seront plus rattachées à une fiche client.';
+ if(!confirm(msg))return;
+ S.clients=S.clients.filter(c=>SELCLI.indexOf(c.id)<0);
+ log('Suppression multiple : '+list.length+' client(s)');
+ SELCLI=[];save();renderCliList();toast(list.length+' client(s) supprimé(s)');
 }
 function cliDel(id){
  const c=S.clients.find(x=>x.id===id);if(!c)return;
