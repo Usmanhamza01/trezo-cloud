@@ -38,7 +38,7 @@ h2{font-size:1.1rem;font-weight:800;margin-bottom:.75rem}
 h3{font-size:.95rem;font-weight:800}
 
 /* ---------- En-tête ---------- */
-header{position:sticky;top:0;z-index:40;background:var(--vert);color:var(--blanc);padding:.7rem 1rem;padding-top:calc(.7rem + env(safe-area-inset-top));display:flex;align-items:center;gap:.7rem}
+header{position:sticky;top:0;z-index:40;background:var(--vert);color:var(--on-vert,#fff);padding:.7rem 1rem;padding-top:calc(.7rem + env(safe-area-inset-top));display:flex;align-items:center;gap:.7rem}
 header .hlogo{width:36px;height:36px;border-radius:9px;flex:none;object-fit:cover;background:var(--blanc)}
 header .hname{font-weight:800;font-size:1.05rem;line-height:1.15;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 header .hsub{font-size:.68rem;font-weight:600;opacity:.75}
@@ -150,11 +150,11 @@ body.readonly .ro-banner{display:block}
 @media(min-width:900px){
   body{padding-bottom:0}
   nav.bottom{display:none}
-  aside.side{display:block;position:fixed;left:0;top:0;bottom:0;width:220px;background:var(--vert-fonce);color:var(--blanc);padding:1.2rem .8rem;z-index:45}
+  aside.side{display:block;position:fixed;left:0;top:0;bottom:0;width:220px;background:var(--vert-fonce);color:var(--side-txt,#fff);padding:1.2rem .8rem;z-index:45}
   aside.side .slogo{display:flex;align-items:center;gap:.6rem;padding:.4rem;margin-bottom:1.4rem;font-weight:800;font-size:1.2rem}
-  aside.side button{display:flex;align-items:center;gap:.7rem;width:100%;padding:.7rem .8rem;border-radius:10px;color:rgba(255,255,255,.75);font-weight:700;font-size:.9rem;margin-bottom:.15rem;text-align:left}
+  aside.side button{display:flex;align-items:center;gap:.7rem;width:100%;padding:.7rem .8rem;border-radius:10px;color:var(--side-txt-soft,rgba(255,255,255,.75));font-weight:700;font-size:.9rem;margin-bottom:.15rem;text-align:left}
   aside.side button svg{width:20px;height:20px}
-  aside.side button.on{background:var(--vert);color:var(--blanc)}
+  aside.side button.on{background:var(--vert);color:var(--on-vert,#fff)}
   header,main{margin-left:220px}
   main{max-width:1000px;padding:1.4rem 2rem}
   .kgrid{grid-template-columns:repeat(4,1fr)}
@@ -235,7 +235,7 @@ const CURRENCIES=[["XOF","FCFA","Franc CFA (UEMOA)"],["XAF","FCFA","Franc CFA (C
 const CAT_IN=["Ventes","Avance client","Prestations de services","Remboursement","Apport","Autre"];
 const CLI_CATS=["Ventes","Avance client","Prestations de services"];
 const CAT_OUT=["Achats fournisseurs","Loyer","Salaires","Transport","Électricité & eau","Internet & téléphone","Impôts & taxes","Entretien","Autre",'Charges fixes'];
-const DEFAULT={v:2,company:{name:"",currency:"XOF",symbol:"FCFA",logo:null},license:null,products:[],accounts:[],clients:[],charges:[],chgPays:[],exercises:[],stockMov:[],tx:[],employees:[],salPays:[],salAdv:[],goals:[],invoices:[],journal:[],settings:{pin:null,readOnly:false,invSeq:0}};
+const DEFAULT={v:2,company:{name:"",currency:"XOF",symbol:"FCFA",logo:null},license:null,products:[],accounts:[],clients:[],charges:[],chgPays:[],exercises:[],stockMov:[],tx:[],employees:[],salPays:[],salAdv:[],goals:[],invoices:[],journal:[],settings:{pin:null,readOnly:false,invSeq:0,repartOn:false,reparts:[],repartLog:[]}};
 const LOGO='data:image/svg+xml;utf8,'+encodeURIComponent("<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect width='192' height='192' rx='42' fill='#0E5A45'/><rect x='46' y='104' width='22' height='42' rx='6' fill='#F2B33D'/><rect x='78' y='84' width='22' height='62' rx='6' fill='#7FC8A9'/><rect x='110' y='58' width='22' height='88' rx='6' fill='#FFFFFF'/><rect x='38' y='36' width='116' height='16' rx='6' fill='#FFFFFF'/></svg>");
 let S=JSON.parse(JSON.stringify(DEFAULT));
 let SB=null,SESSION=null,COMPANY=null,DOC_VERSION=1,SAVE_T=null,SAVING=false,PENDING=false,PERMS=null,MYROLE='owner',MEMS=[];
@@ -848,7 +848,7 @@ R.dash=function(){
   <div class="kpi"><div class="lbl">Chiffre d’affaires ${new Date().getFullYear()}</div><div class="val">${fmt(caY)}</div></div>
  </div>
  ${(function(){const py=new Date().getFullYear()-1,pe=exOf(py);return (pe&&pe.status==='closed')?`<div class="fine" style="margin:-.2rem 0 .8rem">Exercice ${new Date().getFullYear()} en cours · Report à nouveau ${py} : <b>${fmt(pe.ran)}</b></div>`:'';})()}
- <div class="card"><h3>Soldes par compte</h3><div class="kgrid" style="margin-bottom:0">${S.accounts.map(a=>`<div class="kpi"><div class="lbl">${esc(a.name)}</div><div class="val" style="font-size:1.02rem">${fmt(accBal(a.id))}</div></div>`).join('')}</div></div>
+ <div class="card">${S.settings.repartOn&&repartRubriques().length&&repartTotalPct()===100?`<div class="card"><h3>Répartition des encaissements</h3><div class="fine" style="margin-bottom:.5rem">Cumul par rubrique.</div>${repartRubriques().map(r=>{const s=repartSolde(r.name);const seuil=+r.seuil>0;const pctSeuil=seuil?Math.min(100,Math.round(s/r.seuil*100)):0;return `<div style="margin-bottom:.5rem"><div style="display:flex;justify-content:space-between;font-size:.85rem"><span><b>${esc(r.name)}</b> <span class="fine">(${r.pct} %)</span></span><b>${fmt(s)}</b></div>${seuil?`<div style="background:#eee;border-radius:6px;height:6px;margin-top:.2rem;overflow:hidden"><div style="width:${pctSeuil}%;height:100%;background:${pctSeuil>=100?'var(--rouge)':'var(--vert)'}"></div></div><div class="fine">${pctSeuil}% du seuil${pctSeuil>=100?' — atteint':''}</div>`:''}</div>`;}).join('')}</div>`:''}<h3>Soldes par compte</h3><div class="kgrid" style="margin-bottom:0">${S.accounts.map(a=>`<div class="kpi"><div class="lbl">${esc(a.name)}</div><div class="val" style="font-size:1.02rem">${fmt(accBal(a.id))}</div></div>`).join('')}</div></div>
  ${low.length?`<div class="card" style="border-color:var(--rouge)"><h3 style="color:var(--rouge)">⚠ Stock bas</h3>${low.map(p=>`<div class="row"><div class="rmain"><div class="rt">${esc(p.name)}</div></div><span class="chip chip-r">${p.qty} restant(s)</span></div>`).join('')}</div>`:''}
  <div class="grid2" style="margin-bottom:1rem"><button class="btn btn-o" onclick="monthlyReport()">Rapport du mois (PDF)</button><button class="btn btn-o" onclick="exportExcel()">Export Excel</button></div>
  <div class="charts">
@@ -932,6 +932,37 @@ function fluxProd(){
  document.getElementById('f-amt').value=p.price*q;
  document.getElementById('f-cat').value='Ventes';
 }
+function repartRubriques(){return (S.settings.reparts||[]).filter(r=>r&&r.name&&+r.pct>0);}
+function repartTotalPct(){return repartRubriques().reduce((a,r)=>a+(+r.pct||0),0);}
+function repartSolde(name){return (S.settings.repartLog||[]).filter(e=>e.name===name).reduce((a,e)=>a+e.amount,0);}
+function repartApply(montant,txId,dateStr){
+ if(!S.settings.repartOn)return;
+ const rubs=repartRubriques();if(!rubs.length)return;
+ if(repartTotalPct()!==100)return;
+ const log=S.settings.repartLog=S.settings.repartLog||[];
+ rubs.forEach(r=>{
+  let part=Math.round(montant*(+r.pct)/100);
+  if(+r.seuil>0){const deja=repartSolde(r.name);const reste=Math.max(0,(+r.seuil)-deja);
+   if(reste<=0){if(r.seuilAction==='stop')return;}else if(part>reste&&r.seuilAction==='stop'){part=reste;}}
+  if(part>0)log.push({id:uid(),name:r.name,amount:part,txId,date:dateStr||todayStr()});
+ });
+}
+function repartToggle(on){S.settings.repartOn=on;const e=document.getElementById('repart-editor');if(e){e.style.display=on?'block':'none';renderRepartEditor();}save();}
+function renderRepartEditor(){
+ const e=document.getElementById('repart-editor');if(!e)return;
+ const rubs=S.settings.reparts||[];
+ const total=rubs.reduce((a,r)=>a+(+r.pct||0),0);
+ e.innerHTML=rubs.map((r,i)=>`<div class="card" style="padding:.6rem .7rem;margin-bottom:.5rem">
+   <div class="grid2"><div><label>Rubrique</label><input value="${esc(r.name||'')}" oninput="repartSet(${i},'name',this.value)" placeholder="Ex. : Épargne"></div><div><label>Pourcentage (%)</label><input type="number" min="0" max="100" value="${r.pct||''}" oninput="repartSet(${i},'pct',this.value)"></div></div>
+   <div class="grid2" style="margin-top:.4rem"><div><label>Seuil max (optionnel)</label><input type="number" min="0" value="${r.seuil||''}" oninput="repartSet(${i},'seuil',this.value)" placeholder="Aucun"></div><div><label>Au seuil atteint</label><select onchange="repartSet(${i},'seuilAction',this.value)"><option value="stop" ${r.seuilAction!=='continue'?'selected':''}>Arrêter</option><option value="continue" ${r.seuilAction==='continue'?'selected':''}>Continuer malgré tout</option></select></div></div>
+   <div style="display:flex;justify-content:space-between;align-items:center;margin-top:.4rem"><span class="fine">Cumul : <b>${fmt(repartSolde(r.name))}</b>${+r.seuil>0?' / '+fmt(r.seuil):''}</span><button class="btn btn-sm btn-d" onclick="repartDel(${i})">Supprimer</button></div>
+  </div>`).join('')
+  +`<button class="btn btn-a btn-sm" onclick="repartAdd()">+ Ajouter une rubrique</button>
+  <div class="fine mt" style="font-weight:700;color:${total===100?'var(--vert)':'var(--rouge)'}">Total : ${total} %${total===100?' ✓':' — doit faire 100 %'}</div>`;
+}
+function repartAdd(){S.settings.reparts=S.settings.reparts||[];S.settings.reparts.push({name:'',pct:0,seuil:0,seuilAction:'stop'});renderRepartEditor();}
+function repartSet(i,k,v){if(!S.settings.reparts[i])return;S.settings.reparts[i][k]=(k==='pct'||k==='seuil')?(+v||0):v;if(k==='pct'||k==='seuil')renderRepartEditor();save();}
+function repartDel(i){if(!confirm('Supprimer cette rubrique ?'))return;S.settings.reparts.splice(i,1);renderRepartEditor();save();}
 function addTx(){
  const amt=+document.getElementById('f-amt').value;
  if(!amt||amt<=0){toast('Entrez un montant valide');return;}
@@ -966,7 +997,9 @@ function addTx(){
   if(p){if(qty>p.qty&&!confirm('Stock insuffisant ('+p.qty+' dispo). Enregistrer quand même ?'))return;productId=p.id;p.qty=Math.max(0,p.qty-qty);}
  }
  const desc=document.getElementById('f-desc').value.trim();
- S.tx.push({id:uid(),type:FLUX,amount:amt,cat:document.getElementById('f-cat').value,desc,date:document.getElementById('f-date').value||todayStr(),acc:document.getElementById('f-acc').value,clientId:cliId,advance:ADVFLAG||undefined,productId,qty});
+ const _txId=uid();const _txDate=document.getElementById('f-date').value||todayStr();
+ S.tx.push({id:_txId,type:FLUX,amount:amt,cat:document.getElementById('f-cat').value,desc,date:_txDate,acc:document.getElementById('f-acc').value,clientId:cliId,advance:ADVFLAG||undefined,productId,qty});
+ if(FLUX==='in')repartApply(amt,_txId,_txDate);
  if(productId){const pp=S.products.find(x=>x.id===productId);smov(productId,'out',qty,pp?(pp.price||0):0,'Vente'+(desc?' — '+desc:''));}
  log((FLUX==='in'?'Encaissement':'Décaissement')+' de '+fmt(amt)+(desc?' — '+desc:'')+(productId?' (stock mis à jour)':''));
  save();R.flux();toast('Opération enregistrée');
@@ -1904,9 +1937,17 @@ function proToDef(id){
 function applyTheme(){
  const c=(S.company&&S.company.color)||'#0E5A45';
  document.documentElement.style.setProperty('--vert',c);
- try{const n=c.replace('#','');const r=parseInt(n.slice(0,2),16),g=parseInt(n.slice(2,4),16),b=parseInt(n.slice(4,6),16);
-  const dk='#'+[r,g,b].map(v=>Math.max(0,Math.round(v*0.72)).toString(16).padStart(2,'0')).join('');
-  document.documentElement.style.setProperty('--vert-fonce',dk);}catch(e){}
+ try{
+  const n=c.replace('#','');const r=parseInt(n.slice(0,2),16),g=parseInt(n.slice(2,4),16),b=parseInt(n.slice(4,6),16);
+  const dr=Math.max(0,Math.round(r*0.72)),dg=Math.max(0,Math.round(g*0.72)),db=Math.max(0,Math.round(b*0.72));
+  const dk='#'+[dr,dg,db].map(v=>v.toString(16).padStart(2,'0')).join('');
+  document.documentElement.style.setProperty('--vert-fonce',dk);
+  const lum=0.299*dr+0.587*dg+0.114*db;
+  document.documentElement.style.setProperty('--side-txt',lum<150?'#FFFFFF':'#1C2420');
+  document.documentElement.style.setProperty('--side-txt-soft',lum<150?'rgba(255,255,255,.75)':'rgba(28,36,32,.7)');
+  const lum2=0.299*r+0.587*g+0.114*b;
+  document.documentElement.style.setProperty('--on-vert',lum2<150?'#FFFFFF':'#1C2420');
+ }catch(e){}
 }
 function invBuildPDF(iv){
  if(!window.jspdf)return null;
@@ -1940,7 +1981,8 @@ function invBuildPDF(iv){
  if(y+arrLines.length*4>280){doc.addPage();y=20;}
  doc.text(arrLines,14,y);
  doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(130);
- doc.text('Document généré avec Trezo',14,287);
+ doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(130);
+ doc.text([S.company.tel||'',S.company.email||'',S.company.social||''].filter(Boolean).join('   ·   ')||'Document généré avec Trezo',14,287);
  return doc;
 }
 function invPDF(id){
@@ -2008,7 +2050,7 @@ function exportJournal(){
  XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(S.journal.map(j=>({'Date':new Date(j.d).toLocaleString('fr-FR'),'Utilisateur':j.by||'','Module':(j.mod&&MODLBL[j.mod])?MODLBL[j.mod]:'','Action':j.txt}))),'Journal');
  XLSX.writeFile(wb,'journal-audit-'+todayStr()+'.xlsx');
 }
-R.set=function(){
+R.set=function(){setTimeout(()=>{if(S.settings.repartOn)renderRepartEditor();},20);
  const d=licDaysLeft();
  const email=(SESSION&&SESSION.user&&SESSION.user.email)||'';
  document.getElementById('v-set').innerHTML=`
@@ -2017,12 +2059,19 @@ R.set=function(){
   <div class="grid2"><div><label>NINEA (optionnel)</label><input id="s-ninea" value="${esc(S.company.ninea||'')}"></div><div><label>RCCM (optionnel)</label><input id="s-rccm" value="${esc(S.company.rccm||'')}"></div></div>
   <div class="grid2"><div><label>Téléphone (optionnel)</label><input id="s-tel" value="${esc(S.company.tel||'')}"></div><div><label>E-mail (optionnel)</label><input id="s-email" value="${esc(S.company.email||'')}"></div></div>
   <label>Adresse (optionnel)</label><input id="s-addr" value="${esc(S.company.address||'')}">
+  <label>Réseaux sociaux (optionnel)</label><input id="s-social" value="${esc(S.company.social||'')}" placeholder="@monentreprise">
+  <label>Conditions de règlement (optionnel — bas des factures)</label><input id="s-paycond" value="${esc(S.company.payCond||'')}" placeholder="Ex. : Règlement à réception par Wave ou Orange Money">
   <label>Couleur de marque</label><div style="display:flex;gap:.6rem;align-items:center"><input id="s-color" type="color" value="${S.company.color||'#0E5A45'}" style="width:56px;height:40px;padding:2px;border-radius:10px;cursor:pointer"><span class="fine">Appliquée à l’interface et à l’entête de vos factures.</span></div>
   <p class="fine" style="margin-top:.3rem">Ces renseignements apparaissent automatiquement en entête de vos factures.</p>
   <label>Initiales de numérotation des factures</label><input id="s-prefix" value="${esc(S.settings.invPrefix||initialsOf(S.company.name))}" maxlength="5" style="text-transform:uppercase">
   <label>Devise</label><select id="s-cur">${CURRENCIES.map(c=>`<option value="${c[0]}" ${S.company.currency===c[0]?'selected':''}>${c[2]} (${c[1]})</option>`).join('')}</select>
   <label>Logo</label><div style="display:flex;gap:.8rem;align-items:center"><img id="s-logo-prev" src="${S.company.logo||LOGO}" style="width:50px;height:50px;border-radius:12px;border:1px solid var(--ligne);object-fit:cover" alt=""><input type="file" accept="image/*" onchange="setLogo(this)"></div>
   <button class="btn btn-p btn-full mt" onclick="saveCompany()">Enregistrer</button></div></div>
+ <div class="card"><h2>Répartition automatique des encaissements</h2>
+  <p class="fine">Ventile automatiquement chaque encaissement selon des rubriques (Épargne, Charges…). Le total des pourcentages doit faire 100 %.</p>
+  <label style="display:flex;align-items:center;gap:.6rem;text-transform:none;font-size:.9rem"><input type="checkbox" style="width:auto" ${S.settings.repartOn?'checked':''} onchange="repartToggle(this.checked)"> Activer la répartition automatique</label>
+  <div id="repart-editor" style="display:${S.settings.repartOn?'block':'none'};margin-top:.6rem"></div>
+ </div>
  <div class="card"><h2>Licence</h2>
   <p class="fine">${S.license.trial?'Version d’essai gratuite.':'Clé : '+esc(S.license.key)}<br>Expire le <b>${new Date(S.license.expiry).toLocaleDateString('fr-FR')}</b> (${d>0?d+' jours restants':'expirée'}). La vérification s’effectue côté serveur : la date d’expiration ne peut pas être falsifiée.</p>
   <div class="adm"><label>Entrer une nouvelle clé (renouvellement)</label><input id="s-key" placeholder="TRZO-XXXX-XXXX-XXXX" style="text-transform:uppercase"><div id="s-key-msg"></div>
@@ -2055,12 +2104,15 @@ R.set=function(){
   <label class="mt adm" style="display:block;margin-top:1rem"><span class="btn btn-o btn-full" style="display:flex">Importer une sauvegarde (migration)</span><input type="file" accept=".json,application/json" style="display:none" onchange="restore(this)"></label>
   <p class="fine mt">La sauvegarde cloud est automatique. L’archive JSON sert de copie personnelle et permet de migrer les données d’une installation Trezo Classique vers le cloud.</p>
   <button class="btn btn-d btn-full mt adm act-del" onclick="resetAll()">Vider les données de l’entreprise</button></div>
- <p class="fine" style="text-align:center;margin:.4rem 0 1.2rem">Trezo Cloud v3.6 — édition multi-utilisateurs</p>`;
+ <p class="fine" style="text-align:center;margin:.4rem 0 1.2rem">Trezo Cloud v3.8 — édition multi-utilisateurs</p>`;
  if(MYROLE==='owner')loadMembers();
 };
 function setLogo(inp){const f=inp.files[0];if(!f)return;resizeImg(f,url=>{S.company.logo=url;document.getElementById('s-logo-prev').src=url;save();renderHeader();toast('Logo mis à jour');});}
 async function saveCompany(){
- S.company.color=(document.getElementById('s-color')||{value:'#0E5A45'}).value;applyTheme();
+ S.company.color=(document.getElementById('s-color')||{value:'#0E5A45'}).value;
+ S.company.social=(document.getElementById('s-social')||{value:''}).value.trim();
+ S.company.payCond=(document.getElementById('s-paycond')||{value:''}).value.trim();
+ applyTheme();
  const n=document.getElementById('s-name').value.trim();
  if(n&&n!==S.company.name&&!confirm('Attention : les clés de licence sont liées au nom de l’entreprise. Après un changement de nom, les prochaines clés devront être générées avec le nouveau nom. Continuer ?'))return;
  const pfx=document.getElementById('s-prefix').value.trim().toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,5);
@@ -2563,7 +2615,8 @@ function invDocHTML(iv){
  <table class="inv-table"><thead><tr><th>Désignation</th><th style="text-align:right">Qté</th><th style="text-align:right">P.U. (${esc(S.company.symbol)})</th><th style="text-align:right">Total</th></tr></thead><tbody>${iv.lines.map(l=>`<tr><td>${esc(l.label)}</td><td style="text-align:right">${l.qty}</td><td style="text-align:right">${NF.format(l.pu)}</td><td style="text-align:right">${NF.format(l.qty*l.pu)}</td></tr>`).join('')}</tbody></table>
  <div class="inv-tot">${t.remise>0?`<div>Sous-total HT : ${fmt(t.htBrut)}</div><div>Réduction${iv.disc&&iv.disc.t==='pct'?' ('+iv.disc.v+' %)':''} : -${fmt(t.remise)}</div>`:''}<div>Total HT : ${fmt(t.ht)}</div>${iv.tva>0?`<div>TVA (${iv.tva} %) : ${fmt(t.tva)}</div>`:''}<div class="ttc">Total TTC : ${fmt(t.ttc)}</div></div>
  <div style="margin-top:1rem;font-size:.78rem;font-weight:700;border-top:1px dashed #d8d2c4;padding-top:.6rem">${esc(arrete(iv))}</div>
- <div class="inv-foot">Document généré avec Trezo</div></div>`;
+ ${iv.proforma?`<div style="margin-top:.7rem;font-size:.72rem;color:#555">Pro forma valable 30 jours. Bon pour accord (date et signature) :</div><div style="margin-top:1.2rem;border-bottom:1px dotted #999;width:200px;margin-left:auto"></div>`:(S.company.payCond?`<div style="margin-top:.7rem;font-size:.72rem;color:#555">${esc(S.company.payCond)}</div>`:'')}
+ <div style="margin-top:1.4rem;border-top:1px solid #d8d2c4;padding-top:.6rem;display:flex;justify-content:space-between;flex-wrap:wrap;gap:.4rem;font-size:.72rem;color:#5E6B64">${[S.company.tel?'☎ '+esc(S.company.tel):'',S.company.email?'✉ '+esc(S.company.email):'',S.company.social?esc(S.company.social):''].filter(Boolean).join('<span style="opacity:.4"> · </span>')||'Document généré avec Trezo'}</div></div>`;
 }
 function invPreview(id){
  const iv=S.invoices.find(x=>x.id===id);if(!iv)return;
