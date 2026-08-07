@@ -242,6 +242,7 @@ body.readonly .ro-banner{display:block}
   <div class="view" id="v-sal"></div>
   <div class="view" id="v-obj"></div>
   <div class="view" id="v-stock"></div>
+  <div class="view" id="v-appareils"></div>
   <div class="view" id="v-fact"></div>
   <div class="view" id="v-jour"></div>
   <div class="view" id="v-set"></div>
@@ -269,7 +270,7 @@ const CURRENCIES=[["XOF","FCFA","Franc CFA (UEMOA)"],["XAF","FCFA","Franc CFA (C
 const CAT_IN=["Ventes","Avance client","Prestations de services","Remboursement","Apport","Autre"];
 const CLI_CATS=["Ventes","Avance client","Prestations de services"];
 const CAT_OUT=["Achats fournisseurs","Loyer","Salaires","Transport","Électricité & eau","Internet & téléphone","Impôts & taxes","Entretien","Autre",'Charges fixes'];
-const DEFAULT={v:2,company:{name:"",currency:"XOF",symbol:"FCFA",logo:null},license:null,products:[],accounts:[],clients:[],charges:[],chgPays:[],exercises:[],stockMov:[],tx:[],employees:[],salPays:[],salAdv:[],goals:[],invoices:[],journal:[],settings:{pin:null,readOnly:false,invSeq:0,repartOn:false,reparts:[],repartLog:[]}};
+const DEFAULT={v:2,company:{name:"",currency:"XOF",symbol:"FCFA",logo:null},license:null,products:[],accounts:[],clients:[],charges:[],chgPays:[],exercises:[],stockMov:[],tx:[],devices:[],trades:[],employees:[],salPays:[],salAdv:[],goals:[],invoices:[],journal:[],settings:{pin:null,readOnly:false,invSeq:0,repartOn:false,reparts:[],repartLog:[],elecOn:false}};
 const LOGO='data:image/svg+xml;utf8,'+encodeURIComponent("<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect width='192' height='192' rx='42' fill='#0E5A45'/><rect x='46' y='104' width='22' height='42' rx='6' fill='#F2B33D'/><rect x='78' y='84' width='22' height='62' rx='6' fill='#7FC8A9'/><rect x='110' y='58' width='22' height='88' rx='6' fill='#FFFFFF'/><rect x='38' y='36' width='116' height='16' rx='6' fill='#FFFFFF'/></svg>");
 let S=JSON.parse(JSON.stringify(DEFAULT));
 let SB=null,SESSION=null,COMPANY=null,DOC_VERSION=1,SAVE_T=null,SAVING=false,PENDING=false,PERMS=null,MYROLE='owner',MEMS=[];
@@ -349,7 +350,7 @@ fact:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2
 jour:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 4h13a2 2 0 012 2v14H6a2 2 0 01-2-2V4z"/><path d="M4 4a2 2 0 012-2h11v4"/><path d="M9 9h6"/></svg>',
 set:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 00-.1-1.2l2-1.5-2-3.5-2.3 1a7 7 0 00-2-1.2L14 3h-4l-.5 2.6a7 7 0 00-2 1.2l-2.4-1-2 3.5 2 1.5A7 7 0 005 12c0 .4 0 .8.1 1.2l-2 1.5 2 3.5 2.3-1a7 7 0 002 1.2L10 21h4l.5-2.6a7 7 0 002-1.2l2.4 1 2-3.5-2-1.5c.1-.4.1-.8.1-1.2z"/></svg>',
 plus:'<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>'};
-const VIEWS=[["dash","Tableau"],["flux","Flux"],["cli","Clients"],["sal","Charges fixes"],["obj","Objectifs"],["stock","Stocks"],["fact","Factures"],["jour","Journal"],["set","Réglages"]];
+const VIEWS=[["dash","Tableau"],["flux","Flux"],["cli","Clients"],["sal","Charges fixes"],["obj","Objectifs"],["stock","Stocks"],["appareils","Appareils"],["fact","Factures"],["jour","Journal"],["set","Réglages"]];
 let CUR='dash';
 const R={};
 function renderNav(){
@@ -357,7 +358,7 @@ function renderNav(){
  const bottom=[["dash","Tableau"],["flux","Flux"],["fact","Factures"],["stock","Stocks"]];
  document.getElementById('bnav').innerHTML=bottom.filter(function(it){return permOf(it[0])!=='n';}).map(function(it){return '<button data-v="'+it[0]+'" onclick="go(\''+it[0]+'\')">'+IC[it[0]]+it[1]+'</button>';}).join('')+'<button onclick="openSheet(\'sheet-plus\')">'+IC.plus+'Plus</button>';
  document.getElementById('plus-items').innerHTML=[["cli","Clients"],["sal","Charges fixes"],["obj","Objectifs"],["jour","Journal"],["set","Réglages"]].filter(function(it){return permOf(it[0])!=='n';}).map(function(it){return '<button class="menu-it" onclick="closeSheet(\'sheet-plus\');go(\''+it[0]+'\')">'+IC[it[0]]+it[1]+'</button>';}).join('');
- document.getElementById('side').innerHTML='<div class="slogo"><img src="'+LOGO+'" alt="" style="width:34px;height:34px;border-radius:9px">Trezo</div>'+VIEWS.filter(function(it){return permOf(it[0])!=='n';}).map(function(it){return '<button data-v="'+it[0]+'" onclick="go(\''+it[0]+'\')">'+IC[it[0]]+it[1]+'</button>';}).join('');
+ document.getElementById('side').innerHTML='<div class="slogo"><img src="'+LOGO+'" alt="" style="width:34px;height:34px;border-radius:9px">Trezo</div>'+VIEWS.filter(function(it){return permOf(it[0])!=='n' && (it[0]!=='appareils'||elecOn());}).map(function(it){return '<button data-v="'+it[0]+'" onclick="go(\''+it[0]+'\')">'+IC[it[0]]+it[1]+'</button>';}).join('');
 }
 function go(v){CUR=v;document.querySelectorAll('.view').forEach(x=>x.classList.remove('on'));const el=document.getElementById('v-'+v);el.classList.add('on');document.querySelectorAll('[data-v]').forEach(x=>x.classList.toggle('on',x.dataset.v===v));
  const p=permOf(v);
@@ -480,9 +481,24 @@ async function doLogin(){
  if(r.error){auMsg('<div class="msg-err">'+esc(authErr(r.error))+'</div>');return;}
  SESSION=r.data.session;loadWorkspace();
 }
+async function syncLicenseModules(){
+ try{
+   const key=(S.license&&S.license.key)||'';
+   if(!key){ if(S.settings.elecOn){S.settings.elecOn=false;save();if(R[CUR])R[CUR]();} return; }
+   const r=await SB.rpc('license_modules',{p_key:key});
+   const mods=Array.isArray(r&&r.data)?r.data:[];
+   const want=mods.indexOf('elec')>=0;
+   if(!!S.settings.elecOn!==want){
+     S.settings.elecOn=want;save();
+     if(typeof renderNav==='function')renderNav();
+     if(R[CUR])R[CUR]();
+   }
+ }catch(e){}
+}
 function applyCompany(){
  S.company.name=COMPANY.name;S.company.currency=COMPANY.currency;S.company.symbol=COMPANY.symbol;
  S.license={key:COMPANY.license_key||'',expiry:COMPANY.license_expiry,trial:!!COMPANY.is_trial};
+ syncLicenseModules();
 }
 function hydrate(cd){
  DOC_VERSION=cd.version;const d=cd.data||{};
@@ -998,6 +1014,146 @@ function fluxProd(){
  document.getElementById('f-amt').value=p.price*q;
  document.getElementById('f-cat').value='Ventes';
 }
+function elecOn(){return !!(S.settings&&S.settings.elecOn);}
+function elecToggle(on){S.settings.elecOn=on;save();if(R[CUR])R[CUR]();toast(on?'Gestion électronique activée':'Gestion électronique désactivée');}
+/* ---- Appareils (pièces uniques) ---- */
+function devInStock(){return (S.devices||[]).filter(d=>d.status==='en_stock');}
+function devSold(){return (S.devices||[]).filter(d=>d.status==='vendu');}
+function devLabel(d){return (d.model||'Appareil')+(d.capacity?' '+d.capacity:'')+(d.imei?' · '+d.imei:'');}
+function devMargin(d){return d.status==='vendu'?((+d.salePrice||0)-(+d.cost||0)):null;}
+function devStockValue(){return devInStock().reduce((a,d)=>a+(+d.cost||0),0);}
+function addDevice(o){
+ const d={id:uid(),model:o.model||'',capacity:o.capacity||'',condition:o.condition||'',imei:(o.imei||'').trim(),
+   cost:+o.cost||0,source:o.source||'achat',supplier:o.supplier||'',status:'en_stock',
+   saleId:null,salePrice:0,saleDate:null,entryDate:o.date||todayStr(),by:CUR_USER_LBL()};
+ S.devices=S.devices||[];S.devices.push(d);
+ return d;
+}
+function accOptions(sel){return (S.accounts||[]).map(a=>`<option value="${a.id}" ${sel===a.id?'selected':''}>${esc(a.name)}</option>`).join('');}
+function deviceModal(source){
+ const isRep=source==='reprise';
+ openModal(`<h2>${isRep?'Reprise d\'un appareil':'Achat / Entrée d\'un appareil'} <button class="close" onclick="closeSheet('sheet-modal')">×</button></h2>
+  <div class="grid2"><div><label>Modèle *</label><input id="dv-model" placeholder="iPhone 13"></div><div><label>Capacité</label><input id="dv-cap" placeholder="128 Go"></div></div>
+  <div class="grid2"><div><label>État</label><input id="dv-cond" placeholder="Bon état, occasion…"></div><div><label>IMEI / N° série (optionnel)</label><input id="dv-imei" placeholder="Si disponible"></div></div>
+  <div class="grid2"><div><label>${isRep?'Valeur de reprise':'Prix d\'achat'} (${esc(S.company.symbol)}) *</label><input id="dv-cost" type="number" min="0" value="0"></div><div><label>${isRep?'Client (repris de)':'Fournisseur / vendeur'}</label><input id="dv-sup" placeholder="Nom"></div></div>
+  ${isRep?'':`<label>Payer depuis le compte</label><select id="dv-acc">${accOptions((S.accounts[0]||{}).id)}</select>
+  <label style="display:flex;align-items:center;gap:.5rem;text-transform:none;font-size:.85rem;margin-top:.4rem"><input type="checkbox" id="dv-nopay" style="width:auto"> Ne pas enregistrer de sortie d'argent (déjà payé / stock existant)</label>`}
+  <button class="btn btn-p btn-full mt" onclick="deviceSave('${source}')">${isRep?'Ajouter au stock':'Enregistrer l\'achat'}</button>`);
+}
+function deviceSave(source){
+ const model=(document.getElementById('dv-model').value||'').trim();
+ if(!model){toast('Modèle requis');return;}
+ const cost=+document.getElementById('dv-cost').value||0;
+ const d=addDevice({model,capacity:document.getElementById('dv-cap').value.trim(),condition:document.getElementById('dv-cond').value.trim(),
+   imei:document.getElementById('dv-imei').value.trim(),cost,source:source==='reprise'?'reprise':'achat',
+   supplier:document.getElementById('dv-sup').value.trim()});
+ smov(d.id,'in',1,cost,(source==='reprise'?'Reprise ':'Achat ')+devLabel(d));
+ /* Achat : sortie de trésorerie (sauf reprise, ou case cochée) */
+ if(source!=='reprise'){
+   const nopay=(document.getElementById('dv-nopay')||{}).checked;
+   if(!nopay&&cost>0){
+     const acc=(document.getElementById('dv-acc')||{}).value||null;
+     S.tx.push({id:uid(),type:'out',amount:cost,cat:'Achat marchandise',desc:'Achat '+devLabel(d),date:todayStr(),acc,productId:null,qty:1});
+   }
+ }
+ log((source==='reprise'?'Reprise appareil : ':'Achat appareil : ')+devLabel(d)+' ('+fmt(cost)+')');
+ save();closeSheet('sheet-modal');R.appareils();toast('Appareil ajouté au stock');
+}
+function deviceSell(id){
+ const d=(S.devices||[]).find(x=>x.id===id);if(!d)return;
+ _dsCost=+d.cost||0;
+ openModal(`<h2>Vendre — ${esc(devLabel(d))} <button class="close" onclick="closeSheet('sheet-modal')">×</button></h2>
+  <p class="fine">Coût d'acquisition : <b>${fmt(d.cost)}</b></p>
+  <label>Client</label><input id="ds-cli" list="dl-cli" placeholder="Nom du client">
+  <div class="grid2"><div><label>Prix de vente (${esc(S.company.symbol)}) *</label><input id="ds-price" type="number" min="0" value="0" oninput="dsMargin()"></div><div><label>Encaisser sur</label><select id="ds-acc">${accOptions((S.accounts[0]||{}).id)}</select></div></div>
+  <div id="ds-margin" class="fine mt"></div>
+  <label style="display:flex;align-items:center;gap:.5rem;text-transform:none;font-size:.85rem;margin-top:.4rem"><input type="checkbox" id="ds-nopay" style="width:auto"> Ne pas encaisser maintenant (facturé séparément)</label>
+  <button class="btn btn-p btn-full mt" onclick="deviceSellSave('${id}')">Valider la vente</button>`);
+}
+function dsMargin(){const p=+((document.getElementById('ds-price')||{}).value)||0;const el=document.getElementById('ds-margin');if(!el)return;el.innerHTML='Marge sur cet appareil : <b>'+fmt(p-(_dsCost||0))+'</b>';}
+let _dsCost=0;
+function deviceSellSave(id){
+ const d=(S.devices||[]).find(x=>x.id===id);if(!d)return;
+ const price=+document.getElementById('ds-price').value||0;
+ if(price<=0){toast('Prix de vente requis');return;}
+ d.status='vendu';d.salePrice=price;d.saleDate=todayStr();d.saleClient=(document.getElementById('ds-cli').value||'').trim();
+ smov(d.id,'out',1,price,'Vente '+devLabel(d));
+ const nopay=(document.getElementById('ds-nopay')||{}).checked;
+ if(!nopay){
+   const acc=(document.getElementById('ds-acc')||{}).value||null;
+   const _tid=uid();
+   S.tx.push({id:_tid,type:'in',amount:price,cat:'Vente',desc:'Vente '+devLabel(d),date:todayStr(),acc,clientId:null,productId:null,qty:1});
+   if(typeof repartApply==='function')repartApply(price,_tid,todayStr());
+ }
+ log('Vente appareil : '+devLabel(d)+' ('+fmt(price)+', marge '+fmt(price-d.cost)+')');
+ save();closeSheet('sheet-modal');R.appareils();toast('Vente enregistrée');
+}
+function deviceDel(id){
+ const d=(S.devices||[]).find(x=>x.id===id);if(!d)return;
+ if(!confirm('Retirer « '+devLabel(d)+' » du stock ? (n\'affecte pas les ventes déjà enregistrées)'))return;
+ S.devices=S.devices.filter(x=>x.id!==id);
+ log('Appareil retiré : '+devLabel(d));save();R.appareils();
+}
+/* ---- Échange : reprise d'un appareil + remise d'un autre + complément ---- */
+function tradeModal(){
+ const stock=devInStock();
+ if(!stock.length){toast('Aucun appareil en stock à remettre au client. Ajoutez-en d\'abord (Achat).');return;}
+ openModal(`<h2>Échange avec reprise <button class="close" onclick="closeSheet('sheet-modal')">×</button></h2>
+  <p class="fine">Le client remet un appareil (repris), vous lui donnez un appareil du stock, il complète la différence.</p>
+  <label>Client</label><input id="tr-cli" list="dl-cli" placeholder="Nom du client">
+  <div class="card" style="margin:.6rem 0"><div class="fine" style="font-weight:800;color:var(--services,#C16A54);margin-bottom:.4rem">1. APPAREIL REPRIS (entre en stock)</div>
+   <div class="grid2"><div><label>Modèle *</label><input id="tr-model" placeholder="iPhone 11"></div><div><label>Capacité</label><input id="tr-cap" placeholder="64 Go"></div></div>
+   <div class="grid2"><div><label>État</label><input id="tr-cond" placeholder="Correct"></div><div><label>IMEI (optionnel)</label><input id="tr-imei"></div></div>
+   <label>Valeur de reprise (${esc(S.company.symbol)}) *</label><input id="tr-repval" type="number" min="0" value="0" oninput="tradeCalc()">
+  </div>
+  <div class="card" style="margin:.6rem 0"><div class="fine" style="font-weight:800;color:var(--vert,#0E5A45);margin-bottom:.4rem">2. APPAREIL REMIS (sort du stock)</div>
+   <label>Appareil vendu au client *</label><select id="tr-give" onchange="tradeCalc()"><option value="">— choisir —</option>${stock.map(d=>`<option value="${d.id}">${esc(devLabel(d))} (coût ${fmt(d.cost)})</option>`).join('')}</select>
+   <label>Prix de vente de cet appareil (${esc(S.company.symbol)}) *</label><input id="tr-price" type="number" min="0" value="0" oninput="tradeCalc()">
+  </div>
+  <div class="card" style="background:var(--vert-wash,#EAF3EF);margin:.6rem 0"><div id="tr-calc" class="fine"></div>
+   <label>Encaisser le complément sur</label><select id="tr-acc">${accOptions((S.accounts[0]||{}).id)}</select>
+  </div>
+  <button class="btn btn-p btn-full mt" onclick="tradeSave()">Valider l'échange</button>`);
+ setTimeout(tradeCalc,20);
+}
+function tradeCalc(){
+ const rep=+((document.getElementById('tr-repval')||{}).value)||0;
+ const price=+((document.getElementById('tr-price')||{}).value)||0;
+ const compl=Math.max(0,price-rep);
+ const el=document.getElementById('tr-calc');if(!el)return;
+ el.innerHTML=`Prix appareil remis : <b>${fmt(price)}</b><br>− Valeur de reprise : <b>${fmt(rep)}</b><br><span style="font-size:1.05rem">= Complément à payer par le client : <b>${fmt(compl)}</b></span>`;
+}
+function tradeSave(){
+ const model=(document.getElementById('tr-model').value||'').trim();
+ const giveId=(document.getElementById('tr-give').value||'');
+ const repval=+document.getElementById('tr-repval').value||0;
+ const price=+document.getElementById('tr-price').value||0;
+ const cli=(document.getElementById('tr-cli').value||'').trim();
+ if(!model){toast('Modèle de l\'appareil repris requis');return;}
+ if(!giveId){toast('Choisissez l\'appareil remis au client');return;}
+ if(price<=0){toast('Prix de l\'appareil remis requis');return;}
+ const give=(S.devices||[]).find(x=>x.id===giveId);if(!give){toast('Appareil introuvable');return;}
+ const compl=Math.max(0,price-repval);
+ /* 1. l'appareil repris entre en stock */
+ const back=addDevice({model,capacity:document.getElementById('tr-cap').value.trim(),condition:document.getElementById('tr-cond').value.trim(),
+   imei:document.getElementById('tr-imei').value.trim(),cost:repval,source:'reprise',supplier:'Reprise'+(cli?' — '+cli:'')});
+ smov(back.id,'in',1,repval,'Reprise (échange) '+devLabel(back));
+ /* 2. l'appareil remis sort du stock (vendu) */
+ give.status='vendu';give.salePrice=price;give.saleDate=todayStr();give.saleClient=cli;
+ smov(give.id,'out',1,price,'Vente (échange) '+devLabel(give));
+ /* 3. encaissement du complément */
+ if(compl>0){
+   const acc=(document.getElementById('tr-acc')||{}).value||null;
+   const _tid=uid();
+   S.tx.push({id:_tid,type:'in',amount:compl,cat:'Vente',desc:'Complément échange — '+devLabel(give),date:todayStr(),acc,clientId:null,productId:null,qty:1});
+   if(typeof repartApply==='function')repartApply(compl,_tid,todayStr());
+ }
+ /* trace de l'opération d'échange */
+ S.trades=S.trades||[];
+ S.trades.push({id:uid(),date:todayStr(),client:cli,backId:back.id,giveId:give.id,repval,price,compl,margin:price-give.cost,by:CUR_USER_LBL()});
+ log('Échange : reprise '+devLabel(back)+' ('+fmt(repval)+') contre '+devLabel(give)+' ('+fmt(price)+'), complément '+fmt(compl));
+ save();closeSheet('sheet-modal');R.appareils();toast('Échange enregistré');
+}
 function repartRubriques(){return (S.settings.reparts||[]).filter(r=>r&&r.name&&+r.pct>0);}
 function repartTotalPct(){return repartRubriques().reduce((a,r)=>a+(+r.pct||0),0);}
 function repartSolde(name){return (S.settings.repartLog||[]).filter(e=>e.name===name).reduce((a,e)=>a+e.amount,0);}
@@ -1427,6 +1583,43 @@ function delGoal(id){S.goals=S.goals.filter(g=>g.id!==id);save();R.obj();}
 <script>
 'use strict';
 /* ===== Stocks ===== */
+let APPTAB='stock';
+R.appareils=function(){
+ if(!elecOn()){document.getElementById('v-appareils').innerHTML='<div class="card"><p class="fine">Module désactivé. Activez « Gestion électronique / téléphonie » dans les Réglages.</p></div>';return;}
+ const inStock=devInStock(), sold=devSold();
+ const list=APPTAB==='stock'?inStock:sold;
+ const tabs=`<div class="seg" style="margin-bottom:1rem">
+   <button class="seg-b ${APPTAB==='stock'?'on':''}" onclick="APPTAB='stock';R.appareils()">En stock (${inStock.length})</button>
+   <button class="seg-b ${APPTAB==='vendu'?'on':''}" onclick="APPTAB='vendu';R.appareils()">Vendus (${sold.length})</button>
+ </div>`;
+ const actions=`<div class="grid2 adm" style="margin-bottom:1rem">
+   <button class="btn btn-p" onclick="deviceModal('achat')">+ Achat / Entrée</button>
+   <button class="btn btn-o" onclick="tradeModal()">⇄ Échange (reprise)</button>
+ </div>`;
+ const rows=list.length?list.map(d=>{
+   const mg=devMargin(d);
+   return `<tr>
+     <td><b>${esc(d.model||'')}</b>${d.capacity?' '+esc(d.capacity):''}${d.imei?`<br><span class="fine">IMEI ${esc(d.imei)}</span>`:''}</td>
+     <td>${esc(d.condition||'—')}</td>
+     <td class="ar">${fmt(d.cost)}</td>
+     <td class="ce"><span class="fine">${d.source==='reprise'?'Reprise':d.source==='achat'?'Achat':'Stock'}</span></td>
+     ${APPTAB==='stock'
+       ?`<td class="ce"><button class="btn btn-sm btn-p" onclick="deviceSell('${d.id}')">Vendre</button> <button class="btn btn-sm" onclick="deviceDel('${d.id}')">🗑</button></td>`
+       :`<td class="ar">${fmt(d.salePrice)}</td><td class="ar" style="color:${mg>=0?'var(--vert)':'var(--rouge)'}"><b>${fmt(mg)}</b></td>`}
+   </tr>`;
+ }).join(''):`<tr><td colspan="6" class="fine" style="text-align:center;padding:1.5rem">Aucun appareil ${APPTAB==='stock'?'en stock':'vendu'}.</td></tr>`;
+ const head=APPTAB==='stock'
+   ?'<tr><th>Appareil</th><th>État</th><th class="ar">Coût</th><th class="ce">Origine</th><th class="ce">Action</th></tr>'
+   :'<tr><th>Appareil</th><th>État</th><th class="ar">Coût</th><th class="ce">Origine</th><th class="ar">Vendu</th><th class="ar">Marge</th></tr>';
+ const totVal=devStockValue();
+ const totMg=sold.reduce((a,d)=>a+(devMargin(d)||0),0);
+ document.getElementById('v-appareils').innerHTML=`${tabs}${actions}
+  <div class="grid2" style="margin-bottom:1rem">
+   <div class="card"><div class="fine">Valeur du stock appareils</div><div style="font-size:1.3rem;font-weight:800">${fmt(totVal)}</div></div>
+   <div class="card"><div class="fine">Marge cumulée (vendus)</div><div style="font-size:1.3rem;font-weight:800;color:var(--vert)">${fmt(totMg)}</div></div>
+  </div>
+  <div class="card"><div class="twrap"><table>${head}${rows}</table></div></div>`;
+};
 R.stock=function(){
  if(STKTAB==='dash'){renderStockDash();return;}
  if(STKTAB==='hist'){renderStockHist();return;}
@@ -1441,13 +1634,15 @@ R.stock=function(){
   <label>Nom</label><input id="p-name">
   <div class="grid2"><div><label>Prix de vente</label><input id="p-price" type="number" min="0"></div><div><label>Prix d’achat (coût)</label><input id="p-cost" type="number" min="0"></div></div>
   <div class="grid2"><div><label>Stock initial</label><input id="p-qty" type="number" min="0" value="0"></div><div><label>Seuil d’alerte</label><input id="p-alert" type="number" min="0" value="5"></div></div>
+  ${elecOn()?`<label>Mode de suivi du stock</label><select id="p-track"><option value="qty">Par quantité (accessoires, lots identiques)</option><option value="unit">À l'unité — appareils (IMEI, marge par pièce)</option></select><p class="fine">« À l'unité » : chaque appareil est une fiche distincte, géré depuis l'onglet Appareils.</p>`:''}
   <button class="btn btn-p btn-full mt" onclick="addProd()">Ajouter</button></div>`;
 };
 function addProd(){
  const n=document.getElementById('p-name').value.trim();
  if(!n){toast('Nom requis');return;}
  if(S.products.some(p=>stripAcc(p.name).toLowerCase()===stripAcc(n).toLowerCase())){toast('Ce produit existe déjà — modifiez sa fiche plutôt que d’en créer un doublon');return;}
- const np={id:uid(),name:n,price:+document.getElementById('p-price').value||0,cost:+document.getElementById('p-cost').value||0,qty:+document.getElementById('p-qty').value||0,alert:+document.getElementById('p-alert').value||0};
+ const _tk=(document.getElementById('p-track')||{}).value||'qty';
+ const np={id:uid(),name:n,price:+document.getElementById('p-price').value||0,cost:+document.getElementById('p-cost').value||0,qty:+document.getElementById('p-qty').value||0,alert:+document.getElementById('p-alert').value||0,track:_tk};
  S.products.push(np);
  smov(np.id,'init',np.qty,np.cost||np.price||0,'Création du produit');
  log('Produit ajouté : '+n+' (solde initial '+np.qty+')');save();R.stock();
@@ -1835,6 +2030,7 @@ function renderInvLines(){
   ${S.products.length?`<select onchange="invLineProd(${i},this.value)"><option value="">— Ligne libre —</option>${S.products.map(p=>`<option value="${p.id}" ${l.productId===p.id?'selected':''}>${esc(p.name)} (stock ${p.qty})</option>`).join('')}</select>`:''}
   <input class="mt" style="margin-top:.5rem" placeholder="Désignation" value="${esc(l.label)}" oninput="INV_LINES[${i}].label=this.value">
   <div class="grid2" style="margin-top:.5rem"><input type="number" min="1" placeholder="Qté" value="${l.qty}" oninput="INV_LINES[${i}].qty=+this.value||1;invTotalPrev()"><input type="number" min="0" placeholder="Prix unitaire" value="${l.pu||''}" oninput="INV_LINES[${i}].pu=+this.value||0;invTotalPrev()"></div>
+  ${elecOn()&&l.puRef&&(+l.pu!==+l.puRef)?`<div class="fine" style="margin-top:.4rem;color:var(--services,#C16A54)">Réf. ${fmt(l.puRef)} → appliqué ${fmt(l.pu)} (${(+l.pu>+l.puRef?'+':'')}${fmt(l.pu-l.puRef)})</div><input class="mt" style="margin-top:.3rem" placeholder="Motif (optionnel)" value="${esc(l.motif||'')}" oninput="invLineMotif(${i},this.value)">`:''}
   ${INV_LINES.length>1?`<button class="btn btn-sm btn-d" style="margin-top:.5rem" onclick="invRmLine(${i})">Retirer</button>`:''}
  </div>`).join('');
  invTotalPrev();
@@ -1842,9 +2038,11 @@ function renderInvLines(){
 function invLineProd(i,pid){
  const p=S.products.find(x=>x.id===pid);
  INV_LINES[i].productId=pid;
- if(p){INV_LINES[i].label=p.name;INV_LINES[i].pu=p.price;}
+ if(p){INV_LINES[i].label=p.name;INV_LINES[i].pu=p.price;INV_LINES[i].puRef=p.price;}
+ else{INV_LINES[i].puRef=null;}
  renderInvLines();
 }
+function invLineMotif(i,v){if(INV_LINES[i])INV_LINES[i].motif=v;}
 function invTotalPrev(){
  const htB=INV_LINES.reduce((a,l)=>a+(l.qty||0)*(l.pu||0),0);
  const dt=(document.getElementById('iv-dt')||{}).value||'none';
@@ -1901,7 +2099,7 @@ function saveInvoice(kind){
  const addrv=((document.getElementById('iv-addr')||{}).value||'').trim();
  if(!cli){cli={id:uid(),name:client,firstname:'',phone:telv,address:addrv};S.clients.push(cli);log('Client créé automatiquement depuis la facturation : '+client);toast('Nouveau client « '+client+' » ajouté à la base');}
  else{if(telv&&!cli.phone)cli.phone=telv;if(addrv&&!cli.address)cli.address=addrv;}
- const lines=INV_LINES.filter(l=>l.label.trim()&&l.qty>0).map(l=>({label:l.label.trim(),qty:l.qty,pu:l.pu,productId:l.productId||null}));
+ const lines=INV_LINES.filter(l=>l.label.trim()&&l.qty>0).map(l=>({label:l.label.trim(),qty:l.qty,pu:l.pu,productId:l.productId||null,puRef:(l.puRef!=null&&+l.pu!==+l.puRef)?l.puRef:undefined,motif:l.motif||undefined}));
  if(!lines.length){toast('Ajoutez au moins une ligne');return;}
  const fromTx=INV_FROM_TX?S.tx.find(x=>x.id===INV_FROM_TX):null;
  const proforma=(kind==='pro')&&!fromTx;
@@ -2225,6 +2423,7 @@ R.set=function(){setTimeout(()=>{if(S.settings.repartOn)renderRepartEditor();},2
   <label style="display:flex;align-items:center;gap:.6rem;text-transform:none;font-size:.9rem"><input type="checkbox" style="width:auto" ${S.settings.repartOn?'checked':''} onchange="repartToggle(this.checked)"> Activer la répartition automatique</label>
   <div id="repart-editor" style="display:${S.settings.repartOn?'block':'none'};margin-top:.6rem"></div>
  </div>
+ ${S.settings.elecOn?`<div class="card"><h2>Gestion électronique / téléphonie</h2><p class="fine">Module activé par votre licence. Onglet « Appareils » disponible dans le menu : suivi à l'unité (IMEI, état), achats/reprises, échanges, marge par appareil.</p></div>`:''}
  <div class="card"><h2>Licence</h2>
   <p class="fine">${S.license.trial?'Version d’essai gratuite.':'Clé : '+esc(S.license.key)}<br>Expire le <b>${new Date(S.license.expiry).toLocaleDateString('fr-FR')}</b> (${d>0?d+' jours restants':'expirée'}). La vérification s’effectue côté serveur : la date d’expiration ne peut pas être falsifiée.</p>
   <div class="adm"><label>Entrer une nouvelle clé (renouvellement)</label><input id="s-key" placeholder="TRZO-XXXX-XXXX-XXXX" style="text-transform:uppercase"><div id="s-key-msg"></div>
@@ -2439,7 +2638,7 @@ function smov(pid,type,qty,pu,ref,d){
  if(S.stockMov.length>6000)S.stockMov=S.stockMov.slice(-6000);
 }
 const PLEVELS=[['n','Aucun accès'],['r','Lecture seule'],['c','Création seule (sans modification)'],['w','Écriture (sans suppression)'],['t','Total']];
-const MODLBL={dash:'Tableau de bord',flux:'Trésorerie (Flux)',cli:'Clients',sal:'Charges fixes',obj:'Objectifs',stock:'Stocks',fact:'Facturation',jour:'Journal',set:'Réglages'};
+const MODLBL={appareils:'Appareils',dash:'Tableau de bord',flux:'Trésorerie (Flux)',cli:'Clients',sal:'Charges fixes',obj:'Objectifs',stock:'Stocks',fact:'Facturation',jour:'Journal',set:'Réglages'};
 function permsForm(cur){
  cur=(cur&&cur.m)?cur.m:{};
  return Object.keys(MODLBL).map(k=>`<div class="grid2" style="align-items:center;margin-top:.4rem"><div style="font-weight:700;font-size:.9rem">${MODLBL[k]}</div><select class="pm-sel" data-m="${k}">${PLEVELS.map(l=>`<option value="${l[0]}" ${(cur[k]||(k==='set'?'r':'t'))===l[0]?'selected':''}>${l[1]}</option>`).join('')}</select></div>`).join('');
