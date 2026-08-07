@@ -10,9 +10,9 @@
 //   -> permettent la bascule BUSINESS (un compte, deux espaces, SSO)
 // ================================================================
 window.TREZO_CONFIG = {
-  url: "https://VOTRE-PROJET.supabase.co",
-  anonKey: "COLLEZ_ICI_LA_CLE_ANON_PUBLIC",
+  url: "https://nxntmhqtrffbnjvozidt.supabase.co",
+  anonKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im54bnRtaHF0cmZmYm5qdm96aWR0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMzNTQwMjEsImV4cCI6MjA5ODkzMDAyMX0.YPqgHcwbtJ6jh-T2LXEFjI1CfgyGow1_BwbUOF0RaRk",
   edition: "commerce",
-  urlCommerce: "",   // ex. "https://commerce.trezo.app"  (laisser vide si non déployé)
-  urlServices: ""    // ex. "https://services.trezo.app"
+ urlCommerce: "https://trezo-cloud.pages.dev/",
+  urlServices: "https://trezo-presta.pages.dev/"
 };
