@@ -1,6 +1,6 @@
 {
-  "name": "Trezo Cloud — Trésorerie PME",
-  "short_name": "Trezo",
+  "name": "Trezo Commerce — Trésorerie PME",
+  "short_name": "Commerce",
   "description": "Gestion de trésorerie pour PME, synchronisée dans le cloud : encaissements, décaissements, salaires, stocks, factures.",
   "lang": "fr",
   "start_url": "./",

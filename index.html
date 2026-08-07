@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Trezo Cloud — La trésorerie de votre PME, synchronisée</title>
+<title>Trezo Commerce — La trésorerie de votre PME, synchronisée</title>
 <meta name="description" content="Gestion de trésorerie pour PME : encaissements, décaissements, salaires, stocks, factures.">
 <meta name="theme-color" content="#0E5A45">
 <link rel="manifest" href="manifest.webmanifest">
@@ -163,6 +163,40 @@ body.readonly .ro-banner{display:block}
 }
 /* ---------- Facture : aperçu & impression ---------- */
 .inv-doc{background:#fff;color:#1C2420;padding:1.4rem;border-radius:8px;min-width:290px;font-size:.9rem;box-shadow:0 1px 4px rgba(0,0,0,.08)}
+
+.inv-eve{--ac:var(--brand,#0E5A45);background:#fff;color:#1c1c1c;padding:0;font-family:'Manrope','Helvetica Neue',sans-serif;position:relative;overflow:hidden;border-radius:4px}
+.inv-eve .inv-bar{height:8px;background:linear-gradient(90deg,var(--ac),color-mix(in srgb,var(--ac) 55%,#fff))}
+.inv-eve .inv-pad{padding:26px 30px}
+.inv-eve .inv-wm{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) rotate(-18deg);width:70%;max-width:340px;opacity:.05;pointer-events:none;z-index:0}
+.inv-eve .inv-title{font-size:1.75rem;font-weight:800;letter-spacing:-.5px;color:var(--ac);line-height:1.1}
+.inv-eve .inv-sub{font-size:.72rem;color:#8a8a8a;font-weight:600;text-transform:uppercase;letter-spacing:2px;margin-top:2px}
+.inv-eve .inv-hr{border:0;border-top:1px solid #ece7de;margin:.7rem 0 1rem}
+.inv-eve .inv-topgrid{display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;margin-top:1rem}
+.inv-eve .inv-line-strong{font-weight:700;font-size:.82rem;line-height:1.55;color:#2a2a2a}
+.inv-eve .inv-line-soft{font-size:.76rem;color:#777;line-height:1.55}
+.inv-eve .inv-logo{width:78px;height:78px;object-fit:contain;border-radius:12px}
+.inv-eve .inv-att{font-weight:800;font-size:.7rem;letter-spacing:2px;color:var(--ac);margin:1.3rem 0 .5rem;text-transform:uppercase}
+.inv-eve .inv-client{background:color-mix(in srgb,var(--ac) 7%,#fff);border-left:3px solid var(--ac);border-radius:0 8px 8px 0;padding:.7rem .9rem;margin-bottom:1.2rem}
+.inv-eve .inv-cli-name{font-weight:800;font-size:.98rem;color:#1c1c1c}
+.inv-eve .inv-cli-sub{font-size:.78rem;color:#777;margin-top:2px}
+.inv-eve-table{width:100%;border-collapse:collapse;margin:.6rem 0;font-size:.82rem}
+.inv-eve-table th{padding:9px 11px;text-align:left;font-weight:700;font-size:.68rem;letter-spacing:1px;text-transform:uppercase;color:#fff;background:var(--ac)}
+.inv-eve-table th:first-child{border-radius:8px 0 0 0}
+.inv-eve-table th:last-child{border-radius:0 8px 0 0}
+.inv-eve-table td{padding:11px;border-bottom:1px solid #efeae1;vertical-align:top}
+.inv-eve-table .ar{text-align:right}
+.inv-eve-table .ce{text-align:center}
+.inv-eve-tot{margin:1rem 0 .3rem;margin-left:auto;width:62%;max-width:280px}
+.inv-eve-tot .row{display:flex;justify-content:space-between;font-size:.83rem;padding:.28rem 0;color:#555}
+.inv-eve-tot .row b{color:#1c1c1c}
+.inv-eve-tot .row.big{font-weight:800;font-size:1.05rem;color:#fff;background:var(--ac);border-radius:10px;padding:.6rem .85rem;margin-top:.5rem}
+.inv-eve-tot .row.big span,.inv-eve-tot .row.big b{color:#fff}
+.inv-eve .inv-cond{margin-top:.9rem;font-size:.73rem;color:#666;background:#faf8f4;border-radius:8px;padding:.5rem .7rem}
+.inv-eve .inv-sign{margin-top:1.6rem;border-bottom:1px dotted #aaa;width:200px;margin-left:auto}
+.inv-eve .inv-arrete{margin-top:1.2rem;font-size:.73rem;font-style:italic;color:#888;border-top:1px dashed #ddd;padding-top:.6rem}
+.inv-eve-foot{margin-top:1.8rem;padding:.8rem 30px;background:var(--ac);color:#fff;display:flex;justify-content:space-between;flex-wrap:wrap;gap:.5rem;font-size:.72rem;font-weight:500}
+.inv-eve-foot span{opacity:.95}
+
 .inv-head{display:flex;gap:.9rem;align-items:center;border-bottom:3px solid var(--vert);padding-bottom:.8rem;margin-bottom:.9rem}
 .inv-head img{width:52px;height:52px;border-radius:10px;object-fit:cover}
 .inv-co{font-weight:800;font-size:1.15rem;color:var(--vert)}
@@ -229,7 +263,7 @@ body.readonly .ro-banner{display:block}
 
 <script>
 'use strict';
-/* ===== Trezo Cloud v1 — cœur ===== */
+/* ===== Trezo Commerce v1 — cœur ===== */
 const CONFIG=window.TREZO_CONFIG||{};
 const CURRENCIES=[["XOF","FCFA","Franc CFA (UEMOA)"],["XAF","FCFA","Franc CFA (CEMAC)"],["MAD","DH","Dirham marocain"],["TND","DT","Dinar tunisien"],["DZD","DA","Dinar algérien"],["EGP","E£","Livre égyptienne"],["NGN","₦","Naira nigérian"],["GHS","GH₵","Cedi ghanéen"],["KES","KSh","Shilling kényan"],["TZS","TSh","Shilling tanzanien"],["UGX","USh","Shilling ougandais"],["RWF","FRw","Franc rwandais"],["GNF","FG","Franc guinéen"],["CDF","FC","Franc congolais"],["MRU","UM","Ouguiya mauritanien"],["ZAR","R","Rand sud-africain"],["ETB","Br","Birr éthiopien"],["USD","$","Dollar US"],["EUR","€","Euro"]];
 const CAT_IN=["Ventes","Avance client","Prestations de services","Remboursement","Apport","Autre"];
@@ -375,7 +409,7 @@ function permOf(v){if(MYROLE==='owner'||!PERMS||!PERMS.m)return't';return PERMS.
 
 /* ===== Écrans d'accès ===== */
 let OB={products:[]};
-function obHTML(inner,step){return '<div class="ob-logo"><img src="'+LOGO+'" alt="" style="width:52px;height:52px;border-radius:14px"><div><div style="font-weight:800;font-size:1.5rem">Trezo Cloud</div><div style="font-size:.85rem;opacity:.8">Votre trésorerie, synchronisée et sécurisée.</div></div></div><div class="steps">'+[0,1,2,3].map(i=>'<i class="'+(i<=step?'on':'')+'"></i>').join('')+'</div><div class="panel">'+inner+'</div>';}
+function obHTML(inner,step){return '<div class="ob-logo"><img src="'+LOGO+'" alt="" style="width:52px;height:52px;border-radius:14px"><div><div style="font-weight:800;font-size:1.5rem">Trezo Commerce</div><div style="font-size:.85rem;opacity:.8">Votre trésorerie, synchronisée et sécurisée.</div></div></div><div class="steps">'+[0,1,2,3].map(i=>'<i class="'+(i<=step?'on':'')+'"></i>').join('')+'</div><div class="panel">'+inner+'</div>';}
 function obShow(inner,step){document.getElementById('ob').classList.add('open');document.getElementById('ob-body').innerHTML=obHTML(inner,step);}
 function authErr(e){
  const m=String((e&&e.message)||e||'');
@@ -463,18 +497,50 @@ async function loadWorkspace(){
  if(r.error){obFail(r.error);return;}
  if(!r.data||!r.data.length){showCompanySetup();return;}
  MEMS=r.data;
- let mem=r.data[0];
- if(r.data.length>1){
+ /* Arrivée depuis l'autre espace (SSO) : ?company=... prioritaire */
+ try{const qc=new URLSearchParams(location.search).get('company');if(qc){localStorage.setItem('trezo_company',qc);history.replaceState(null,'',location.pathname);}}catch(e){}
+ /* Ne considérer que les entreprises de CETTE édition */
+ const myEd=trezoEdition();
+ const mine=r.data.filter(x=>((x.companies.edition)||'commerce')===myEd);
+ if(!mine.length){
+  /* Le compte n'a aucune entreprise de cette édition : proposer l'autre espace ou la création */
+  showNoSpaceHere(r.data,myEd);return;
+ }
+ let mem=mine[0];
+ if(mine.length>1){
   const saved=localStorage.getItem('trezo_company');
-  const f=r.data.find(x=>x.company_id===saved);
+  const f=mine.find(x=>x.company_id===saved);
   if(f)mem=f;else{showCompanyPicker();return;}
+ }else{
+  const saved=localStorage.getItem('trezo_company');
+  const f=mine.find(x=>x.company_id===saved);if(f)mem=f;
  }
  enterCompany(mem);
+}
+function showNoSpaceHere(all,myEd){
+ const other=myEd==='commerce'?'services':'commerce';
+ const otherOnes=all.filter(x=>((x.companies.edition)||'commerce')===other);
+ obShow(`<h2>Espace ${editionLabel(myEd)}</h2>
+  <p class="fine">Votre compte n'a pas encore d'entreprise dans l'espace ${editionLabel(myEd)}.</p>
+  ${otherOnes.length?`<p class="fine">Vous avez ${otherOnes.length} entreprise(s) dans l'espace ${editionLabel(other)} :</p>${otherOnes.map(m=>`<button class="btn btn-o btn-full mt" onclick="goToSpace('${m.company_id}','${other}')">${esc(m.companies.name)}${editionBadge(other)} ↗</button>`).join('')}`:''}
+  <button class="btn btn-p btn-full mt" onclick="showCompanySetup()">Créer une entreprise ${editionLabel(myEd)} ici</button>
+  <button class="btn btn-full mt" style="color:var(--gris)" onclick="cloudSignOut()">Se déconnecter</button>`,1);
+}
+function trezoEdition(){return (window.TREZO_CONFIG&&window.TREZO_CONFIG.edition)||'commerce';}
+function spaceURL(edition){const cfg=window.TREZO_CONFIG||{};return edition==='services'?(cfg.urlServices||''):(cfg.urlCommerce||'');}
+function editionLabel(ed){return ed==='services'?'Services':'Commerce';}
+function editionBadge(ed){const c=ed==='services'?'#C16A54':'#0E5A45';return `<span style="display:inline-block;font-size:.62rem;font-weight:800;letter-spacing:.5px;text-transform:uppercase;color:#fff;background:${c};border-radius:20px;padding:2px 9px;vertical-align:middle;margin-left:.4rem">${editionLabel(ed)}</span>`;}
+function goToSpace(companyId,edition){
+ /* Bascule SSO : la session Supabase est partagée (même projet). */
+ const url=spaceURL(edition);
+ localStorage.setItem('trezo_company',companyId);
+ if(url){location.href=url.replace(/\/$/,'')+'/?company='+encodeURIComponent(companyId);}
+ else{toast("L'espace "+editionLabel(edition)+" n'est pas encore configuré (URL manquante dans config.js).");}
 }
 function showCompanyPicker(){
  obShow(`<h2>Choisissez une entreprise</h2>
  <p class="fine">Votre compte est rattaché à ${MEMS.length} entreprises. Sélectionnez celle sur laquelle travailler — vous pourrez changer à tout moment depuis Réglages.</p>
- ${MEMS.map((m,i)=>`<button class="btn btn-o btn-full mt" onclick="pickCompany(${i})">${esc(m.companies.name)}${m.role==='owner'?' — administrateur':''}</button>`).join('')}
+ ${MEMS.map((m,i)=>{const ed=(m.companies.edition)||'commerce';const here=ed===trezoEdition();return `<button class="btn btn-o btn-full mt" onclick="${here?`pickCompany(${i})`:`goToSpace('${m.company_id}','${ed}')`}">${esc(m.companies.name)}${editionBadge(ed)}${m.role==='owner'?' <span class="fine">— admin</span>':''}${here?'':' <span class="fine">↗</span>'}</button>`;}).join('')}
  <button class="btn btn-full mt" style="color:var(--gris)" onclick="cloudSignOut()">Se déconnecter</button>`,1);
 }
 function pickCompany(i){
@@ -568,7 +634,7 @@ function obFinish(){
  S.products=OB.products;S.company.logo=OB.logo||null;
  S.accounts=[{id:'a_caisse',name:'Caisse'},{id:'a_banque',name:'Banque'},{id:'a_om',name:'Orange Money'},{id:'a_wave',name:'Wave'}];
  S.settings.invPrefix=initialsOf(S.company.name);
- log('Espace Trezo Cloud configuré pour '+S.company.name);
+ log('Espace Trezo Commerce configuré pour '+S.company.name);
  save();
  document.getElementById('ob').classList.remove('open');
  initApp();
@@ -1725,6 +1791,8 @@ function invModal(title,hint){
  <label>TVA (%) — laissez 0 si non applicable</label><input id="iv-tva" type="number" min="0" value="0" oninput="invTotalPrev()">
  <div id="iv-total" class="mt" style="font-weight:800"></div>
  ${INV_EDIT?`<button class="btn btn-p btn-full mt" onclick="saveInvoice('edit')">Enregistrer les modifications</button>`:INV_FROM_TX?`<button class="btn btn-p btn-full mt" onclick="saveInvoice('def')">Générer la facture</button>`:`<div class="grid2 mt"><button class="btn btn-o" onclick="saveInvoice('pro')">Facture Pro forma</button><button class="btn btn-p" onclick="saveInvoice('def')">Facture Définitive</button></div>`}`);
+ if(!INV_EDIT){INV_KIND='normal';}
+ setTimeout(()=>{const k=document.getElementById('iv-kind');if(k){k.value=INV_KIND;invKindChange();}},10);
  renderInvLines();
 }
 function invEdit(id){
@@ -1790,6 +1858,41 @@ function invTotalPrev(){
  const el=document.getElementById('iv-total');
  if(el)el.innerHTML=(rem>0?'Sous-total HT : '+fmt(htB)+' · Réduction : -'+fmt(rem)+(dt==='pct'?' ('+dv+' %)':'')+'<br>':'')+'Total TTC : '+fmt(ht+tva);
 }
+function cliAcomptesTotal(clientId,exceptId){
+ return S.invoices.filter(iv=>iv.clientId===clientId&&iv.kind==='acompte'&&!iv.proforma&&!iv.cancelled&&iv.id!==exceptId).reduce((a,iv)=>a+invTotals(iv).ttc,0);
+}
+function invKindChange(){
+ INV_KIND=(document.getElementById('iv-kind')||{value:'normal'}).value;
+ const ab=document.getElementById('iv-acpt-box'),sb=document.getElementById('iv-solde-box');
+ if(ab)ab.style.display=INV_KIND==='acompte'?'block':'none';
+ if(sb)sb.style.display=INV_KIND==='solde'?'block':'none';
+ const isSpecial=(INV_KIND==='acompte'||INV_KIND==='solde');
+ const lw=document.getElementById('iv-lines-wrap');
+ if(lw)lw.style.display=isSpecial?'none':'block';
+ if(INV_KIND==='acompte')invAcptPrev();
+ else if(INV_KIND==='solde')invSoldePrev();
+}
+function invAcptPrev(){
+ INV_ACPT_TYPE=(document.getElementById('iv-acpt-type')||{value:'pct'}).value;
+ INV_ACPT_VAL=+((document.getElementById('iv-acpt-val')||{}).value)||0;
+ const total=+((document.getElementById('iv-acpt-total')||{}).value)||0;
+ let acpt=0;
+ if(INV_ACPT_TYPE==='pct')acpt=Math.round(total*Math.min(100,INV_ACPT_VAL)/100);
+ else acpt=Math.min(INV_ACPT_VAL,total);
+ INV_LINES=[{label:'Acompte sur commande',qty:1,pu:acpt,productId:null}];
+ const out=document.getElementById('iv-acpt-out');if(!out)return;
+ out.innerHTML=total>0?`Sur un total de <b>${fmt(total)}</b>, l'acompte est de <b>${fmt(acpt)}</b>.`:`Indiquez le montant total de la commande.`;
+}
+function invSoldePrev(){
+ const info=document.getElementById('iv-solde-info');if(!info)return;
+ const total=+((document.getElementById('iv-solde-total')||{}).value)||0;
+ const client=(document.getElementById('iv-client')||{value:''}).value.trim();
+ const cli=S.clients.find(x=>cliFull(x).toLowerCase()===client.toLowerCase());
+ const acpts=cli?cliAcomptesTotal(cli.id,INV_EDIT):0;
+ const solde=Math.max(0,total-acpts);
+ INV_LINES=[{label:'Solde sur commande',qty:1,pu:solde,productId:null}];
+ info.innerHTML=total>0?(cli?`Acompte(s) déjà facturé(s) à ce client : <b>${fmt(acpts)}</b><br><b>Solde à payer : ${fmt(solde)}</b>`:`Saisissez d'abord le client pour déduire ses acomptes.<br><b>Solde : ${fmt(solde)}</b>`):`Indiquez le montant total de la commande.`;
+}
 function saveInvoice(kind){
  const client=document.getElementById('iv-client').value.trim();
  if(!client){toast('Nom du client requis');return;}
@@ -1841,9 +1944,9 @@ function saveInvoice(kind){
   const nextN=(S.settings.seqY[exYear]||0)+1;S.settings.seqY[exYear]=nextN;
   num=pfx+'-'+exYear+'-'+String(nextN).padStart(3,'0');
  }
- const iv={id:uid(),num,client,clientId:cli.id,phone:document.getElementById('iv-tel').value.trim(),date:ivDate,lines,tva:+document.getElementById('iv-tva').value||0,disc:(function(){const dt=(document.getElementById('iv-dt')||{}).value||'none';const dv=+((document.getElementById('iv-dv')||{}).value)||0;return(dt!=='none'&&dv>0)?{t:dt,v:dv}:null;})(),paid:!!fromTx,proforma:proforma};
+ const iv={id:uid(),num,client,clientId:cli.id,phone:document.getElementById('iv-tel').value.trim(),date:ivDate,lines,tva:+document.getElementById('iv-tva').value||0,disc:(function(){const dt=(document.getElementById('iv-dt')||{}).value||'none';const dv=+((document.getElementById('iv-dv')||{}).value)||0;return(dt!=='none'&&dv>0)?{t:dt,v:dv}:null;})(),paid:!!fromTx,proforma:proforma,kind:INV_KIND||'normal',acptType:INV_KIND==='acompte'?INV_ACPT_TYPE:undefined,acptVal:INV_KIND==='acompte'?INV_ACPT_VAL:undefined};
  if(fromTx)iv.pays=[{d:iv.date,amount:invTotals(iv).ttc}];
- if(!fromTx&&!proforma)lines.forEach(l=>{if(l.productId){const p=S.products.find(x=>x.id===l.productId);if(p){p.qty=Math.max(0,p.qty-l.qty);smov(p.id,'out',l.qty,l.pu||0,'Facture '+num);}}});
+ if(!fromTx&&!proforma&&INV_KIND==='normal')lines.forEach(l=>{if(l.productId){const p=S.products.find(x=>x.id===l.productId);if(p){p.qty=Math.max(0,p.qty-l.qty);smov(p.id,'out',l.qty,l.pu||0,'Facture '+num);}}});
  S.invoices.push(iv);
  if(fromTx){fromTx.invId=iv.id;log('Facture générée depuis un encaissement : '+num+' — '+client+' ('+fmt(invTotals(iv).ttc)+')');}
  else{log((proforma?'Pro forma créée : ':'Facture créée : ')+num+' — '+client+' ('+fmt(invTotals(iv).ttc)+')');}
@@ -1951,38 +2054,88 @@ function applyTheme(){
 }
 function invBuildPDF(iv){
  if(!window.jspdf)return null;
- const t=invTotals(iv);
- const doc=new window.jspdf.jsPDF();
- if(S.company.logo){try{doc.addImage(S.company.logo,'PNG',14,12,22,22);}catch(e){}}
- doc.setFont('helvetica','bold');doc.setFontSize(16);doc.setTextColor(14,90,69);
- doc.text(S.company.name,S.company.logo?40:14,20);
- doc.setFontSize(11);doc.setTextColor(60);
- doc.text((iv.proforma?'FACTURE PRO FORMA ':'FACTURE ')+iv.num,S.company.logo?40:14,27);
- const _ci=[S.company.address||'',S.company.tel?'Tél : '+S.company.tel:'',S.company.email||'',S.company.ninea?'NINEA : '+S.company.ninea:'',S.company.rccm?'RCCM : '+S.company.rccm:''].filter(Boolean).join('  ·  ');
- if(_ci){doc.setFont('helvetica','normal');doc.setFontSize(7.6);doc.setTextColor(110);doc.text(_ci,S.company.logo?40:14,32.5,{maxWidth:S.company.logo?155:180});}
- doc.setFont('helvetica','normal');doc.setFontSize(10);doc.setTextColor(20);
- doc.text('Client : '+iv.client+(iv.phone?'   Tél : '+iv.phone:''),14,44);
- doc.text('Date : '+dateLabel(iv.date),14,50);
- doc.autoTable({startY:58,head:[['Désignation','Qté','P.U. ('+S.company.symbol+')','Total']],
-  body:iv.lines.map(l=>[l.label,String(l.qty),pdfN(l.pu),pdfN(l.qty*l.pu)]),
-  headStyles:{fillColor:[14,90,69]},styles:{font:'helvetica',fontSize:10}});
- let y=doc.lastAutoTable.finalY+8;
- if(t.remise>0){
-  doc.text('Sous-total HT : '+pdfN(t.htBrut)+' '+S.company.symbol,130,y);y+=6;
-  doc.text('Réduction'+(iv.disc&&iv.disc.t==='pct'?' ('+iv.disc.v+' %)':'')+' : -'+pdfN(t.remise)+' '+S.company.symbol,130,y);y+=6;
+ const t=invTotals(iv);const co=S.company;
+ const c=iv.clientId?S.clients.find(x=>x.id===iv.clientId):null;
+ const cliAddr=c&&c.address?c.address:'';const cliTel=iv.phone||(c&&c.phone)||'';
+ const footTel=co.tel||'',footMail=co.email||'',footSoc=co.social||'';
+ const doc=new window.jspdf.jsPDF();const W=210,M=16;
+ let BR=[14,90,69];try{const n=(co.color||'#0E5A45').replace('#','');BR=[parseInt(n.slice(0,2),16),parseInt(n.slice(2,4),16),parseInt(n.slice(4,6),16)];}catch(e){}
+ /* Barre de couleur en haut */
+ doc.setFillColor(BR[0],BR[1],BR[2]);doc.rect(0,0,W,6,'F');
+ /* Filigrane logo en fond */
+ if(co.logo){try{const wmW=120,wmH=120;doc.saveGraphicsState&&doc.saveGraphicsState();if(doc.setGState){doc.setGState(new doc.GState({opacity:0.05}));}doc.addImage(co.logo,'PNG',(W-wmW)/2,(297-wmH)/2,wmW,wmH);if(doc.setGState){doc.setGState(new doc.GState({opacity:1}));}doc.restoreGraphicsState&&doc.restoreGraphicsState();}catch(e){}}
+ doc.setTextColor(20,20,20);
+ /* Grand titre */
+ doc.setFont('helvetica','bold');doc.setFontSize(24);doc.setTextColor(BR[0],BR[1],BR[2]);
+ doc.text(iv.proforma?'PRO FORMA':'FACTURE',M,24);
+ doc.setFont('helvetica','normal');doc.setFontSize(9);doc.setTextColor(150,150,150);
+ const _kl=iv.kind==='acompte'?"FACTURE D'ACOMPTE":iv.kind==='solde'?'FACTURE DE SOLDE':'';
+ if(co.name)doc.text(co.name.toUpperCase()+(_kl?'  -  '+_kl:''),M,30);
+ doc.setTextColor(20,20,20);
+ doc.setDrawColor(230,225,215);doc.setLineWidth(.4);doc.line(M,35,W-M,35);
+ /* Bloc émetteur (gauche) + logo (droite) */
+ doc.setFont('courier','bold');doc.setFontSize(10);doc.setTextColor(30);
+ let y=40;
+ doc.text(dateLabel(iv.date),M,y);y+=5;
+ doc.text((iv.proforma?'Pro forma':'Facture')+' n'+String.fromCharCode(176)+' '+String(iv.num),M,y);y+=5;
+ if(co.address){doc.text(String(co.address),M,y);y+=5;}
+ doc.setFont('courier','normal');doc.setFontSize(8.5);doc.setTextColor(70);
+ if(co.tel){doc.text('Tel : '+co.tel,M,y);y+=4.5;}
+ if(co.email){doc.text(co.email,M,y);y+=4.5;}
+ if(co.ninea||co.rccm){doc.text([co.ninea?'NINEA : '+co.ninea:'',co.rccm?'RCCM : '+co.rccm:''].filter(Boolean).join(' - '),M,y);y+=4.5;}
+ if(co.logo){try{doc.addImage(co.logo,'PNG',W-M-28,36,28,28);}catch(e){}}
+ /* A l'attention de */
+ y=Math.max(y,70)+4;
+ doc.setFont('times','bold');doc.setFontSize(12);doc.setTextColor(20);
+ doc.text("A L'ATTENTION DE",M,y);y+=7;
+ doc.setFont('courier','bold');doc.setFontSize(10);
+ doc.text(String(iv.client||'').toUpperCase(),M,y);y+=5;
+ doc.setFont('courier','normal');doc.setFontSize(8.5);doc.setTextColor(70);
+ if(cliAddr){doc.text(String(cliAddr),M,y);y+=4.5;}
+ if(cliTel){doc.text(String(cliTel),M,y);y+=4.5;}
+ /* Tableau 4 colonnes */
+ y+=4;
+ doc.autoTable({startY:y,
+  head:[['DESIGNATION','P.U. ('+co.symbol+')','QTE','TOTAL']],
+  body:iv.lines.map(l=>[l.label,pdfN(l.pu),String(l.qty),pdfN(l.qty*l.pu)]),
+  theme:'striped',
+  headStyles:{fillColor:BR,textColor:[255,255,255],fontStyle:'bold',fontSize:8},
+  alternateRowStyles:{fillColor:[250,248,244]},
+  columnStyles:{1:{halign:'right'},2:{halign:'center'},3:{halign:'right'}},
+  styles:{font:'helvetica',fontSize:9,cellPadding:3.5,textColor:[30,30,30]}});
+ y=doc.lastAutoTable.finalY+4;
+ doc.setDrawColor(34);doc.line(M,y,W-M,y);y+=7;
+ /* Totaux (alignes a droite) - TVA */
+ const LX=120,RX=W-M;
+ doc.setFont('helvetica','normal');doc.setFontSize(9.5);doc.setTextColor(90);
+ if(t.remise>0){doc.text('Sous-total HT :',LX,y);doc.text(pdfN(t.htBrut)+' '+co.symbol,RX,y,{align:'right'});y+=6;
+  doc.text('REDUCTION :',LX,y);doc.text('-'+pdfN(t.remise)+' '+co.symbol,RX,y,{align:'right'});y+=6;}
+ doc.text('TOTAL HT :',LX,y);doc.text(pdfN(t.ht)+' '+co.symbol,RX,y,{align:'right'});y+=6;
+ if(iv.tva>0){doc.text('TVA ('+iv.tva+' %) :',LX,y);doc.text(pdfN(t.tva)+' '+co.symbol,RX,y,{align:'right'});y+=7;}
+ y+=1;doc.setFillColor(BR[0],BR[1],BR[2]);doc.roundedRect(LX-4,y-5,RX-LX+8,10,2,2,'F');
+ doc.setFont('helvetica','bold');doc.setFontSize(11);doc.setTextColor(255,255,255);
+ doc.text('TOTAL TTC :',LX,y+1.5);doc.text(pdfN(t.ttc)+' '+co.symbol,RX,y+1.5,{align:'right'});doc.setTextColor(20,20,20);y+=12;
+ /* Arrete en lettres */
+ doc.setFont('times','italic');doc.setFontSize(8.5);doc.setTextColor(60);
+ const arrLines=doc.splitTextToSize(arrete(iv),W-2*M);
+ if(y+arrLines.length*4>270){doc.addPage();y=24;}
+ doc.text(arrLines,M,y);y+=arrLines.length*4+4;
+ if(iv.proforma){
+  doc.setFont('courier','normal');doc.setFontSize(7.6);doc.setTextColor(70);
+  doc.text("Pro forma valable 30 jours a compter de la date d'emission.",M,y);y+=5;
+  doc.text('Bon pour accord (date et signature) :',M,y);
+ }else if(co.payCond){
+  doc.setFont('courier','normal');doc.setFontSize(7.6);doc.setTextColor(70);
+  doc.splitTextToSize(co.payCond,W-2*M).forEach(function(ln){doc.text(ln,M,y);y+=4.5;});
  }
- doc.text('Total HT : '+pdfN(t.ht)+' '+S.company.symbol,130,y);
- if(iv.tva>0){y+=6;doc.text('TVA ('+iv.tva+' %) : '+pdfN(t.tva)+' '+S.company.symbol,130,y);}
- y+=7;doc.setFont('helvetica','bold');doc.setFontSize(12);
- doc.text('Total TTC : '+pdfN(t.ttc)+' '+S.company.symbol,130,y);
- y+=10;
- doc.setFont('helvetica','bolditalic');doc.setFontSize(9);doc.setTextColor(28,36,32);
- const arrLines=doc.splitTextToSize(arrete(iv),182);
- if(y+arrLines.length*4>280){doc.addPage();y=20;}
- doc.text(arrLines,14,y);
- doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(130);
- doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(130);
- doc.text([S.company.tel||'',S.company.email||'',S.company.social||''].filter(Boolean).join('   ·   ')||'Document généré avec Trezo',14,287);
+ /* Pied de page : bande coloree (seulement si au moins un contact) */
+ if(footTel||footMail||footSoc){
+  doc.setFillColor(BR[0],BR[1],BR[2]);doc.rect(0,283,W,14,'F');
+  doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(255,255,255);
+  if(footTel)doc.text(String(footTel),M,291);
+  if(footMail)doc.text(String(footMail),W/2,291,{align:'center'});
+  if(footSoc)doc.text(String(footSoc),W-M,291,{align:'right'});
+ }
  return doc;
 }
 function invPDF(id){
@@ -2080,7 +2233,7 @@ R.set=function(){setTimeout(()=>{if(S.settings.repartOn)renderRepartEditor();},2
   <p class="fine">Invitez vos collaborateurs et définissez leurs droits module par module : <b>Aucun accès</b>, <b>Lecture seule</b>, <b>Écriture</b> (créer &amp; modifier, sans supprimer) ou <b>Total</b>.</p>
   <div id="mem-list" class="fine">Chargement…</div>
   <div class="grid2 mt adm"><button class="btn btn-p" onclick="newUserOpen()">+ Créer un compte</button><button class="btn btn-o" onclick="invitOpen()">Inviter par code</button></div></div>`:''}
- <div class="card"><h2>Compte</h2>${MEMS.length>1?`<button class="btn btn-o btn-full" style="margin:.4rem 0 .6rem" onclick="switchCompany()">⇄ Changer d’entreprise (${MEMS.length} rattachées)</button>`:''}
+ <div class="card"><h2>Compte</h2>${(function(){const other=trezoEdition()==='commerce'?'services':'commerce';const os=(MEMS||[]).filter(m=>((m.companies.edition)||'commerce')===other);if(!os.length)return'';return `<button class="btn btn-p btn-full" style="margin:.4rem 0 .6rem" onclick="goToSpace('${os[0].company_id}','${other}')">↗ Aller à mon espace ${editionLabel(other)}</button>`;})()}${MEMS.length>1?`<button class="btn btn-o btn-full" style="margin:.4rem 0 .6rem" onclick="switchCompany()">⇄ Changer d’entreprise (${MEMS.length} rattachées)</button>`:''}
   <p class="fine">Connecté : <b>${esc(email)}</b>. Vos données sont synchronisées dans le cloud et accessibles depuis n’importe quel appareil avec cet identifiant.</p>
   <div class="grid2 mt"><button class="btn btn-o adm" onclick="cloudChangePass()">Changer le mot de passe</button><button class="btn btn-o" onclick="cloudSignOut()">Se déconnecter</button></div></div>
  <div class="card"><h2>Exercices comptables</h2>
@@ -2104,7 +2257,7 @@ R.set=function(){setTimeout(()=>{if(S.settings.repartOn)renderRepartEditor();},2
   <label class="mt adm" style="display:block;margin-top:1rem"><span class="btn btn-o btn-full" style="display:flex">Importer une sauvegarde (migration)</span><input type="file" accept=".json,application/json" style="display:none" onchange="restore(this)"></label>
   <p class="fine mt">La sauvegarde cloud est automatique. L’archive JSON sert de copie personnelle et permet de migrer les données d’une installation Trezo Classique vers le cloud.</p>
   <button class="btn btn-d btn-full mt adm act-del" onclick="resetAll()">Vider les données de l’entreprise</button></div>
- <p class="fine" style="text-align:center;margin:.4rem 0 1.2rem">Trezo Cloud v3.8 — édition multi-utilisateurs</p>`;
+ <p class="fine" style="text-align:center;margin:.4rem 0 1.2rem">Trezo Commerce v3.8 — édition multi-utilisateurs</p>`;
  if(MYROLE==='owner')loadMembers();
 };
 function setLogo(inp){const f=inp.files[0];if(!f)return;resizeImg(f,url=>{S.company.logo=url;document.getElementById('s-logo-prev').src=url;save();renderHeader();toast('Logo mis à jour');});}
@@ -2610,13 +2763,60 @@ function arrete(iv){
 /* ===== Facture : aperçu identique au document final + impression ===== */
 function invDocHTML(iv){
  const t=invTotals(iv);
- return `<div class="inv-doc"><div class="inv-head">${S.company.logo?`<img src="${S.company.logo}" alt="">`:''}<div><div class="inv-co" style="color:${esc(S.company.color||'#0E5A45')}">${esc(S.company.name)}</div><div style="font-size:.72rem;color:#5E6B64;line-height:1.55;margin-top:.15rem">${[S.company.address||'',(S.company.tel?'Tél : '+S.company.tel:'')+(S.company.tel&&S.company.email?' · ':'')+(S.company.email||''),[(S.company.ninea?'NINEA : '+S.company.ninea:''),(S.company.rccm?'RCCM : '+S.company.rccm:'')].filter(Boolean).join(' · ')].filter(Boolean).map(esc).join('<br>')}</div><div class="inv-num">${iv.proforma?'FACTURE PRO FORMA ':'FACTURE '}${esc(iv.num)}${invStatus(iv)==='cancel'?' — ANNULÉE':invStatus(iv)==='paid'?' — PAYÉE':invStatus(iv)==='part'?' — PARTIELLEMENT RÉGLÉE':''}</div></div></div>
- <div class="inv-meta"><div><b>Client :</b> ${esc(iv.client)}${iv.phone?'<br><b>Tél :</b> '+esc(iv.phone):''}${(function(){const c=iv.clientId?S.clients.find(x=>x.id===iv.clientId):null;return c&&c.address?'<br><b>Adresse :</b> '+esc(c.address):'';})()}</div><div><b>Date :</b> ${dateLabel(iv.date)}${invStatus(iv)==='part'?'<br><b>Réglé :</b> '+fmt(invPaid(iv))+' — <b>Reste dû :</b> '+fmt(invTotals(iv).ttc-invPaid(iv)):''}</div></div>
- <table class="inv-table"><thead><tr><th>Désignation</th><th style="text-align:right">Qté</th><th style="text-align:right">P.U. (${esc(S.company.symbol)})</th><th style="text-align:right">Total</th></tr></thead><tbody>${iv.lines.map(l=>`<tr><td>${esc(l.label)}</td><td style="text-align:right">${l.qty}</td><td style="text-align:right">${NF.format(l.pu)}</td><td style="text-align:right">${NF.format(l.qty*l.pu)}</td></tr>`).join('')}</tbody></table>
- <div class="inv-tot">${t.remise>0?`<div>Sous-total HT : ${fmt(t.htBrut)}</div><div>Réduction${iv.disc&&iv.disc.t==='pct'?' ('+iv.disc.v+' %)':''} : -${fmt(t.remise)}</div>`:''}<div>Total HT : ${fmt(t.ht)}</div>${iv.tva>0?`<div>TVA (${iv.tva} %) : ${fmt(t.tva)}</div>`:''}<div class="ttc">Total TTC : ${fmt(t.ttc)}</div></div>
- <div style="margin-top:1rem;font-size:.78rem;font-weight:700;border-top:1px dashed #d8d2c4;padding-top:.6rem">${esc(arrete(iv))}</div>
- ${iv.proforma?`<div style="margin-top:.7rem;font-size:.72rem;color:#555">Pro forma valable 30 jours. Bon pour accord (date et signature) :</div><div style="margin-top:1.2rem;border-bottom:1px dotted #999;width:200px;margin-left:auto"></div>`:(S.company.payCond?`<div style="margin-top:.7rem;font-size:.72rem;color:#555">${esc(S.company.payCond)}</div>`:'')}
- <div style="margin-top:1.4rem;border-top:1px solid #d8d2c4;padding-top:.6rem;display:flex;justify-content:space-between;flex-wrap:wrap;gap:.4rem;font-size:.72rem;color:#5E6B64">${[S.company.tel?'☎ '+esc(S.company.tel):'',S.company.email?'✉ '+esc(S.company.email):'',S.company.social?esc(S.company.social):''].filter(Boolean).join('<span style="opacity:.4"> · </span>')||'Document généré avec Trezo'}</div></div>`;
+ const c=iv.clientId?S.clients.find(x=>x.id===iv.clientId):null;
+ const cliAddr=c&&c.address?c.address:'';
+ const cliTel=iv.phone||(c&&c.phone)||'';
+ const co=S.company;
+ const socials=co.social||'';
+ const footTel=co.tel||'';
+ const footMail=co.email||'';
+ const statusTag=invStatus(iv)==='cancel'?' — ANNULÉE':invStatus(iv)==='paid'?' — PAYÉE':invStatus(iv)==='part'?' — PARTIELLEMENT RÉGLÉE':'';
+ return `<div class="inv-doc inv-eve" style="--brand:${co.color||'#0E5A45'}">
+  <div class="inv-bar"></div>
+  ${co.logo?`<img class="inv-wm" src="${co.logo}" alt="">`:''}
+  <div class="inv-pad">
+  <div class="inv-topgrid">
+   <div><div class="inv-title">${iv.proforma?'PRO FORMA':'FACTURE'}</div><div class="inv-sub">${esc(co.name||'')}${iv.kind==='acompte'?" — FACTURE D'ACOMPTE":iv.kind==='solde'?' — FACTURE DE SOLDE':''}${statusTag}</div></div>
+   ${co.logo?`<img class="inv-logo" src="${co.logo}" alt="">`:''}
+  </div>
+  <div class="inv-hr"></div>
+  <div class="inv-topgrid">
+   <div>
+    <div class="inv-line-strong">${iv.proforma?'Pro forma':'Facture'} n°${esc(String(iv.num))}</div>
+    <div class="inv-line-soft">Date : ${dateLabel(iv.date)}</div>
+   </div>
+   <div style="text-align:right">
+    ${co.address?`<div class="inv-line-strong">${esc(co.address)}</div>`:''}
+    ${co.tel?`<div class="inv-line-soft">${esc(co.tel)}</div>`:''}
+    ${co.email?`<div class="inv-line-soft">${esc(co.email)}</div>`:''}
+    ${co.ninea||co.rccm?`<div class="inv-line-soft">${[co.ninea?'NINEA : '+co.ninea:'',co.rccm?'RCCM : '+co.rccm:''].filter(Boolean).join(' · ')}</div>`:''}
+   </div>
+  </div>
+  <div class="inv-att">À L'ATTENTION DE</div>
+  <div class="inv-client">
+   <div class="inv-cli-name">${esc(iv.client||'').toUpperCase()}</div>
+   ${cliAddr?`<div class="inv-cli-sub">${esc(cliAddr)}</div>`:''}
+   ${cliTel?`<div class="inv-cli-sub">${esc(cliTel)}</div>`:''}
+  </div>
+  <table class="inv-eve-table"><thead><tr><th>DÉSIGNATION</th><th class="ar">P.U. (${esc(co.symbol)})</th><th class="ce">QTÉ</th><th class="ar">TOTAL</th></tr></thead>
+  <tbody>${iv.lines.map(l=>`<tr><td>${esc(l.label)}</td><td class="ar">${NF.format(l.pu)}</td><td class="ce">${l.qty}</td><td class="ar">${NF.format(l.qty*l.pu)}</td></tr>`).join('')}</tbody></table>
+  <div class="inv-hr"></div>
+  <div class="inv-eve-tot">
+   ${t.remise>0?`<div class="row"><span>Sous-total HT :</span><b>${NF.format(t.htBrut)} ${esc(co.symbol)}</b></div><div class="row"><span>RÉDUCTION${iv.disc&&iv.disc.t==='pct'?' ('+iv.disc.v+' %)':''} :</span><b>-${NF.format(t.remise)} ${esc(co.symbol)}</b></div>`:''}
+   <div class="row"><span>TOTAL HT :</span><b>${NF.format(t.ht)} ${esc(co.symbol)}</b></div>
+   ${iv.tva>0?`<div class="row"><span>TVA (${iv.tva} %) :</span><b>${NF.format(t.tva)} ${esc(co.symbol)}</b></div>`:''}
+   <div class="row big"><span>TOTAL TTC :</span><b>${NF.format(t.ttc)} ${esc(co.symbol)}</b></div>
+  </div>
+  ${invStatus(iv)==='part'?`<div class="inv-line-soft" style="text-align:right;margin-top:.3rem">Réglé : ${fmt(invPaid(iv))} · Reste dû : ${fmt(t.ttc-invPaid(iv))}</div>`:''}
+  <div class="inv-arrete">${esc(arrete(iv))}</div>
+  ${iv.proforma?`<div class="inv-cond">Pro forma valable 30 jours à compter de la date d'émission. Bon pour accord (date et signature) :</div><div class="inv-sign"></div>`:(co.payCond?`<div class="inv-cond">${esc(co.payCond)}</div>`:'')}
+  </div>
+  ${(footTel||footMail||socials)?`<div class="inv-eve-foot">
+   ${footTel?`<span>☎ ${esc(footTel)}</span>`:''}
+   ${footMail?`<span>✉ ${esc(footMail)}</span>`:''}
+   ${socials?`<span>${esc(socials)}</span>`:''}
+  </div>`:''}
+ </div>`;
 }
 function invPreview(id){
  const iv=S.invoices.find(x=>x.id===id);if(!iv)return;
