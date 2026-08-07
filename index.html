@@ -42,6 +42,7 @@ header{position:sticky;top:0;z-index:40;background:var(--vert);color:var(--on-ve
 header .hlogo{width:36px;height:36px;border-radius:9px;flex:none;object-fit:cover;background:var(--blanc)}
 header .hname{font-weight:800;font-size:1.05rem;line-height:1.15;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 header .hsub{font-size:.68rem;font-weight:600;opacity:.75}
+#btn-switch{background:var(--a,#D9A441)!important;color:#1C2420!important;font-weight:800}
 .btn-lock{background:rgba(255,255,255,.14);color:var(--blanc);border-radius:10px;padding:.5rem .7rem;font-weight:700;font-size:.8rem;flex:none}
 
 /* ---------- Boutons ---------- */
@@ -227,6 +228,7 @@ body.readonly .ro-banner{display:block}
     <div class="hname" id="h-name">Trezo</div>
     <div class="hsub"><span id="h-lic"></span><span id="h-sync"></span></div>
   </div>
+  <button class="btn-lock" id="btn-switch" title="Basculer vers l'autre espace" style="display:none"></button>
   <button class="btn-lock" id="btn-refresh" title="Recharger les données depuis le cloud">⟳</button>
   <select class="btn-lock" id="hd-ex" title="Naviguer entre les exercices comptables"></select>
   <button class="btn-lock" id="btn-lock" title="Basculer le mode lecture seule">🔒 Verrouiller</button>
@@ -346,6 +348,7 @@ cli:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
 sal:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6"/><circle cx="17" cy="9" r="2.5"/><path d="M17 14.5c2.8 0 4.5 2 4.5 4.5"/></svg>',
 obj:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.4" fill="currentColor"/></svg>',
 stock:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 7v10l9 4 9-4V7"/><path d="M12 11v10"/></svg>',
+appareils:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/></svg>',
 fact:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2h9l4 4v16H6z"/><path d="M15 2v4h4"/><path d="M9 12h7M9 16h7"/></svg>',
 jour:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 4h13a2 2 0 012 2v14H6a2 2 0 01-2-2V4z"/><path d="M4 4a2 2 0 012-2h11v4"/><path d="M9 9h6"/></svg>',
 set:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 00-.1-1.2l2-1.5-2-3.5-2.3 1a7 7 0 00-2-1.2L14 3h-4l-.5 2.6a7 7 0 00-2 1.2l-2.4-1-2 3.5 2 1.5A7 7 0 005 12c0 .4 0 .8.1 1.2l-2 1.5 2 3.5 2.3-1a7 7 0 002 1.2L10 21h4l.5-2.6a7 7 0 002-1.2l2.4 1 2-3.5-2-1.5c.1-.4.1-.8.1-1.2z"/></svg>',
@@ -375,6 +378,18 @@ function renderHeader(){
  if(S.license)el.textContent=(S.license.trial?'Essai — ':'Licence — ')+(d>0?d+' j restants':'expirée');
  document.body.classList.toggle('readonly',!!S.settings.readOnly);
  document.getElementById('btn-lock').textContent=S.settings.readOnly?'🔓 Déverrouiller':'🔒 Verrouiller';
+ renderSwitchBtn();
+}
+function renderSwitchBtn(){
+ const b=document.getElementById('btn-switch');if(!b)return;
+ const other=trezoEdition()==='commerce'?'services':'commerce';
+ const os=(MEMS||[]).filter(m=>((m.companies.edition)||'commerce')===other);
+ if(os.length){
+   b.style.display='';
+   b.textContent='⇄ '+editionLabel(other);
+   b.title='Basculer vers votre espace '+editionLabel(other);
+   b.onclick=function(){goToSpace(os[0].company_id,other);};
+ }else{b.style.display='none';}
 }
 document.getElementById('btn-lock').onclick=async function(){
  if(!COMPANY)return;
